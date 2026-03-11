@@ -344,6 +344,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.7;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cmpx575.promptly;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6;
@@ -443,6 +444,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.7;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cmpx575.promptly;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6;

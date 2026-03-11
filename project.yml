@@ -12,7 +12,7 @@ targets:
         CFBundleIdentifier: com.cmpx575.promptly
         NSMicrophoneUsageDescription: "Promptly needs microphone access to detect speech for voice-activated scrolling."
         NSSupportsAutomaticTermination: false
-        LSUIElement: 1
+        LSApplicationCategoryType: public.app-category.productivity
     entitlements:
       path: Promptly/Promptly.entitlements
       properties:
@@ -23,6 +23,7 @@ targets:
         SWIFT_STRICT_CONCURRENCY: "complete"
         TARGETED_DEVICE_FAMILY: "6"
         ENABLE_HARDENED_RUNTIME: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.cmpx575.promptly
   PromptlyTests:
     type: bundle.unit-test
     platform: macOS

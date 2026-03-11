@@ -48,12 +48,12 @@ struct PromptlyApp: App {
             // Undo/Redo support
             CommandGroup(replacing: .undoRedo) {
                 Button("Undo") {
-                    NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+                    NSApp.sendAction(#selector(UndoManager.undo), to: nil, from: nil)
                 }
                 .keyboardShortcut("z", modifiers: .command)
 
                 Button("Redo") {
-                    NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+                    NSApp.sendAction(#selector(UndoManager.redo), to: nil, from: nil)
                 }
                 .keyboardShortcut("z", modifiers: [.command, .shift])
             }
@@ -67,8 +67,9 @@ struct PromptlyApp: App {
                 .keyboardShortcut("a", modifiers: .command)
             }
 
-            // View menu
-            CommandMenu("View") {
+            // View menu items (appended to default View menu)
+            CommandGroup(after: .toolbar) {
+                Divider()
                 Button("Increase Font Size") {
                     appDelegate.settingsManager.fontSize = min(72, appDelegate.settingsManager.fontSize + 2)
                 }
@@ -346,6 +347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Save any pending changes
         scriptStore.saveImmediately()
+        settingsManager.saveImmediately()
 
         // Stop audio monitoring
         prompterViewModel.stopPrompting()
@@ -555,14 +557,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func requestMicrophonePermission() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
-                Task { @MainActor in
-                    if granted {
-                        print("Microphone access granted")
-                    } else {
-                        print("Microphone access denied")
-                        self.showMicPermissionDeniedAlert()
-                    }
+            // Use async overload to avoid @MainActor capture in background callback
+            Task {
+                let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                if granted {
+                    print("Microphone access granted")
+                } else {
+                    print("Microphone access denied")
+                    self.showMicPermissionDeniedAlert()
                 }
             }
         case .restricted, .denied:
