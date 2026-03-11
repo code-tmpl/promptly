@@ -59,7 +59,7 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     /// Binds the scroll controller to an audio detector
     public func bind(to audioDetector: AudioLevelDetector) {
         audioDetector.$isSpeaking
-            .receive(on: DispatchQueue.main)
+            .receive(on: RunLoop.main)
             .sink { [weak self] speaking in
                 self?.handleSpeakingChange(speaking)
             }

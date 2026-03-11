@@ -276,6 +276,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @Published var showAudioErrorAlert = false
     @Published var audioErrorMessage = ""
 
+    /// Stored task for screen parameter change recovery (prevents races)
+    private var screenChangeTask: Task<Void, Never>?
+
     private var helpWindow: NSWindow?
     private var shortcutsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
@@ -368,15 +371,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func screenParametersDidChange(_ notification: Notification) {
         // Reposition prompter window if active
         if prompterViewModel.state.isActive {
-            // Brief delay to let screen changes settle
-            Task { @MainActor [weak self] in
+            // Cancel previous screen change task to prevent races
+            // (rapid display connect/disconnect would stack up multiple restarts)
+            screenChangeTask?.cancel()
+            screenChangeTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
                 guard let self else { return }
-                // Restart prompting to reposition window on potentially new screen
                 if self.prompterViewModel.state.isActive {
                     self.prompterViewModel.stopPrompting()
                     self.prompterViewModel.startPrompting()
                 }
+                self.screenChangeTask = nil
             }
         }
     }
