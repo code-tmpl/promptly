@@ -30,6 +30,7 @@ public struct SettingsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityLabel("Close settings")
                 }
 
                 ToolbarItem(placement: .destructiveAction) {
@@ -37,6 +38,7 @@ public struct SettingsView: View {
                         settingsManager.resetToDefaults()
                     }
                     .foregroundStyle(.red)
+                    .accessibilityLabel("Reset all settings to default values")
                 }
             }
             .onAppear {
@@ -50,7 +52,7 @@ public struct SettingsView: View {
 
     private func loadAudioDevices() {
         let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.microphone, .builtInMicrophone, .externalUnknown],
+            deviceTypes: [.microphone, .external],
             mediaType: .audio,
             position: .unspecified
         )
@@ -82,6 +84,8 @@ public struct SettingsView: View {
                 in: 16...72,
                 step: 2
             )
+            .accessibilityLabel("Font size")
+            .accessibilityValue("\(Int(settingsManager.fontSize)) points")
 
             // Text Color
             ColorPicker("Text Color", selection: $settingsManager.textColor)
@@ -102,6 +106,8 @@ public struct SettingsView: View {
                 in: 0.3...1.0,
                 step: 0.05
             )
+            .accessibilityLabel("Background opacity")
+            .accessibilityValue("\(Int(settingsManager.backgroundOpacity * 100)) percent")
 
             // Preview
             previewSection
@@ -151,6 +157,8 @@ public struct SettingsView: View {
                 in: 0.25...3.0,
                 step: 0.25
             )
+            .accessibilityLabel("Scroll speed")
+            .accessibilityValue(String(format: "%.2f times normal", settingsManager.scrollSpeed))
 
             // Show Speed Indicator
             Toggle("Show Speed Indicator", isOn: $settingsManager.showSpeedIndicator)
@@ -199,6 +207,8 @@ public struct SettingsView: View {
                     in: -50...(-10),
                     step: 5
                 )
+                .accessibilityLabel("Voice detection sensitivity")
+                .accessibilityValue("\(Int(settingsManager.micSensitivity)) decibels")
 
                 HStack {
                     Text("Less sensitive")
@@ -309,7 +319,7 @@ public struct SettingsView: View {
             HStack {
                 Text("Copyright")
                 Spacer()
-                Text("© 2024 All Rights Reserved")
+                Text("© 2025 All Rights Reserved")
                     .foregroundStyle(.secondary)
                     .font(.caption)
             }
