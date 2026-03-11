@@ -7,7 +7,6 @@ public struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var availableAudioDevices: [AudioDevice] = []
-    @State private var selectedAudioDeviceID: String?
 
     public init(settingsManager: SettingsManager) {
         self.settingsManager = settingsManager
@@ -61,10 +60,7 @@ public struct SettingsView: View {
             AudioDevice(id: device.uniqueID, name: device.localizedName)
         }
 
-        // Set default selection to the first device if not set
-        if selectedAudioDeviceID == nil, let firstDevice = availableAudioDevices.first {
-            selectedAudioDeviceID = firstDevice.id
-        }
+        // If no device is persisted, leave as nil (system default)
     }
 
     // MARK: - Appearance Section
@@ -174,7 +170,8 @@ public struct SettingsView: View {
         Section("Microphone") {
             // Microphone Source Picker
             if !availableAudioDevices.isEmpty {
-                Picker("Audio Input", selection: $selectedAudioDeviceID) {
+                Picker("Audio Input", selection: $settingsManager.settings.preferredAudioDeviceID) {
+                    Text("System Default").tag(nil as String?)
                     ForEach(availableAudioDevices) { device in
                         Text(device.name).tag(device.id as String?)
                     }

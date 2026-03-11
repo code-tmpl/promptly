@@ -159,7 +159,8 @@ public struct PrompterOverlayView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
             showSpeedChangeIndicator = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
             withAnimation(.easeOut(duration: 0.2)) {
                 showSpeedChangeIndicator = false
             }

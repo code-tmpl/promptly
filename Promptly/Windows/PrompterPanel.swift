@@ -289,7 +289,7 @@ extension PrompterPanel {
 
         // Re-setup resize handles after setting content
         if !isInNotchMode {
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.setupResizeHandles()
             }
         }
