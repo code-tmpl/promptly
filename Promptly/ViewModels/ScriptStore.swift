@@ -36,9 +36,11 @@ public final class ScriptStore {
 
         if let customDir = storageDirectory {
             self.storageDirectory = customDir
-        } else {
-            let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        } else if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             self.storageDirectory = appSupport.appendingPathComponent("Promptly", isDirectory: true)
+        } else {
+            // Fallback to temporary directory if Application Support is unavailable
+            self.storageDirectory = fileManager.temporaryDirectory.appendingPathComponent("Promptly", isDirectory: true)
         }
 
         createStorageDirectoryIfNeeded()

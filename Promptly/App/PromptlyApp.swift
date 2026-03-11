@@ -368,8 +368,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if prompterViewModel.state.isActive {
             // Brief delay to let screen changes settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                // The window controller will handle repositioning on next frame
-                _ = self
+                guard let self else { return }
+                // Restart prompting to reposition window on potentially new screen
+                if self.prompterViewModel.state.isActive {
+                    self.prompterViewModel.stopPrompting()
+                    self.prompterViewModel.startPrompting()
+                }
             }
         }
     }

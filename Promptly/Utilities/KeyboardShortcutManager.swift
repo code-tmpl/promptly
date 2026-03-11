@@ -1,18 +1,16 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Virtual key codes
+/// Virtual key codes used for shortcut detection
 private enum KeyCode {
     static let returnKey: UInt16 = 0x24
     static let space: UInt16 = 0x31
     static let upArrow: UInt16 = 0x7E
     static let downArrow: UInt16 = 0x7D
     static let t: UInt16 = 0x11
-    static let n: UInt16 = 0x2D
-    static let comma: UInt16 = 0x2B
 }
 
-/// Manages global keyboard shortcuts for the application
+/// Manages keyboard shortcuts for the prompter window
 @MainActor
 public final class KeyboardShortcutManager {
     /// Callback for handling shortcuts
@@ -20,9 +18,6 @@ public final class KeyboardShortcutManager {
 
     /// Local event monitor for key events
     private var localMonitor: Any?
-
-    /// Global event monitor for key events (when app is not active)
-    private var globalMonitor: Any?
 
     /// Whether monitoring is active
     private var isMonitoring = false
@@ -51,11 +46,6 @@ public final class KeyboardShortcutManager {
         if let monitor = localMonitor {
             NSEvent.removeMonitor(monitor)
             localMonitor = nil
-        }
-
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
         }
 
         isMonitoring = false

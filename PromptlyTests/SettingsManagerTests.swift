@@ -24,6 +24,7 @@ final class SettingsManagerTests: XCTestCase {
         let manager = SettingsManager(userDefaults: defaults)
         manager.fontSize = 48
         manager.scrollSpeed = 2.0
+        manager.saveImmediately() // Ensure changes are persisted before creating new manager
 
         // Create new manager with same defaults
         let newManager = SettingsManager(userDefaults: defaults)
@@ -169,6 +170,7 @@ final class SettingsManagerTests: XCTestCase {
 
         // Modify settings
         manager.fontSize = 64
+        manager.saveImmediately() // Force immediate save (debounce is used in production)
 
         // Verify data was saved
         let data = defaults.data(forKey: "com.promptly.settings")

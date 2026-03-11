@@ -22,6 +22,7 @@ targets:
         SWIFT_VERSION: "6"
         SWIFT_STRICT_CONCURRENCY: "complete"
         TARGETED_DEVICE_FAMILY: "6"
+        ENABLE_HARDENED_RUNTIME: YES
   PromptlyTests:
     type: bundle.unit-test
     platform: macOS

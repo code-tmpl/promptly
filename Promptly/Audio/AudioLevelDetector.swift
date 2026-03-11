@@ -13,6 +13,9 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     /// Current audio level in decibels
     @Published public private(set) var audioLevel: Float = -60.0
 
+    /// Whether audio was interrupted (e.g., mic disconnected)
+    @Published public private(set) var isInterrupted: Bool = false
+
     // MARK: - Configuration
 
     /// Threshold in decibels above which audio is considered speech
@@ -36,13 +39,66 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     private var speakingContinuation: AsyncStream<Bool>.Continuation?
     private var audioLevelContinuation: AsyncStream<Float>.Continuation?
 
+    // MARK: - Notification Observers
+
+    /// Wrapper to make observer references Sendable
+    private final class ObserverBox: @unchecked Sendable {
+        var configurationChangeObserver: NSObjectProtocol?
+        var audioInterruptionObserver: NSObjectProtocol?
+    }
+
+    private let observers = ObserverBox()
+
     public init(audioEngine: AVAudioEngine? = nil) {
         self.audioEngine = audioEngine ?? AVAudioEngine()
+        setupNotificationObservers()
     }
 
     deinit {
         speakingContinuation?.finish()
         audioLevelContinuation?.finish()
+        // Remove observers directly in deinit (NotificationCenter is thread-safe)
+        if let observer = observers.configurationChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = observers.audioInterruptionObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    // MARK: - Notification Observers
+
+    private func setupNotificationObservers() {
+        // Observe audio configuration changes (mic connect/disconnect)
+        observers.configurationChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: audioEngine,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleConfigurationChange()
+            }
+        }
+    }
+
+    private func handleConfigurationChange() {
+        // Audio configuration changed (e.g., mic disconnected/reconnected)
+        if isRunning {
+            isInterrupted = true
+            stop()
+
+            // Attempt to restart after a brief delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, self.isInterrupted else { return }
+                do {
+                    try self.start()
+                    self.isInterrupted = false
+                } catch {
+                    // Remain in interrupted state; user may need to restart manually
+                    print("Failed to restart audio after configuration change: \(error)")
+                }
+            }
+        }
     }
 
     // MARK: - Public API
@@ -50,6 +106,16 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     /// Starts monitoring the microphone for audio levels
     public func start() throws {
         guard !isRunning else { return }
+
+        // Verify microphone access on macOS
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        guard authStatus == .authorized else {
+            if authStatus == .notDetermined {
+                // Request access - caller should retry after permission granted
+                AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            }
+            throw AudioError.noInputDevice
+        }
 
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
@@ -68,11 +134,18 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             self?.processAudioBuffer(buffer)
         }
 
-        // Start the audio engine
+        // Start the audio engine with proper error handling
         audioEngine.prepare()
-        try audioEngine.start()
+        do {
+            try audioEngine.start()
+        } catch {
+            // Clean up the tap we just installed
+            inputNode.removeTap(onBus: 0)
+            throw AudioError.engineStartFailed
+        }
 
         isRunning = true
+        isInterrupted = false
     }
 
     /// Stops monitoring the microphone

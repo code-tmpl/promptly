@@ -17,6 +17,9 @@ public struct NotchPositionCalculator: Sendable {
     /// Default height for floating mode
     public static let defaultFloatingHeight: CGFloat = 150
 
+    /// Approximate width of the MacBook notch (based on 14"/16" MacBook Pro)
+    public static let approximateNotchWidth: CGFloat = 180
+
     private init() {}
 
     // MARK: - Notch Detection
@@ -42,15 +45,12 @@ public struct NotchPositionCalculator: Sendable {
         guard hasNotch(screen) else { return nil }
 
         // The notch is centered at the top of the screen
-        // Approximate notch dimensions based on typical MacBook notch
-        let notchWidth: CGFloat = 180  // Approximate
         let notchHeight = notchHeight(for: screen)
-
         let screenFrame = screen.frame
-        let notchX = screenFrame.origin.x + (screenFrame.width - notchWidth) / 2
+        let notchX = screenFrame.origin.x + (screenFrame.width - approximateNotchWidth) / 2
         let notchY = screenFrame.origin.y + screenFrame.height - notchHeight
 
-        return NSRect(x: notchX, y: notchY, width: notchWidth, height: notchHeight)
+        return NSRect(x: notchX, y: notchY, width: approximateNotchWidth, height: notchHeight)
     }
 
     // MARK: - Frame Calculation
