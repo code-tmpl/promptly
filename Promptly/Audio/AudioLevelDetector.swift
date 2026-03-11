@@ -109,11 +109,22 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
 
         // Verify microphone access on macOS
         let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        guard authStatus == .authorized else {
-            if authStatus == .notDetermined {
-                // Request access - caller should retry after permission granted
-                AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        switch authStatus {
+        case .authorized:
+            break // proceed
+        case .notDetermined:
+            // Permission not yet asked — request it asynchronously.
+            // Caller should retry after user grants permission.
+            Task {
+                let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                if granted {
+                    try? self.start() // retry after grant
+                }
             }
+            return // don't throw — just wait for user to respond
+        case .denied, .restricted:
+            throw AudioError.noInputDevice
+        @unknown default:
             throw AudioError.noInputDevice
         }
 
@@ -126,12 +137,37 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
         }
 
         // Install tap on input node
+        // IMPORTANT: This callback runs on Core Audio's realtime thread.
+        // We must NOT access @MainActor state here. Do all RMS math inline,
+        // then send the result to MainActor via Task.
         inputNode.installTap(
             onBus: 0,
             bufferSize: 1024,
             format: format
         ) { [weak self] buffer, _ in
-            self?.processAudioBuffer(buffer)
+            // Calculate RMS entirely on the audio thread — no @MainActor access
+            guard let channelData = buffer.floatChannelData else { return }
+            let channelCount = Int(buffer.format.channelCount)
+            let frameLength = Int(buffer.frameLength)
+            guard frameLength > 0, channelCount > 0 else { return }
+
+            var rms: Float = 0
+            for channel in 0..<channelCount {
+                let data = channelData[channel]
+                var sum: Float = 0
+                for frame in 0..<frameLength {
+                    let sample = data[frame]
+                    sum += sample * sample
+                }
+                rms += sum
+            }
+            rms = sqrt(rms / Float(frameLength * channelCount))
+            let dB = 20 * log10(max(rms, 0.000001))
+
+            // Hop to MainActor with just the Float value — no self capture in the tap
+            Task { @MainActor [weak self] in
+                self?.handleAudioLevel(dB)
+            }
         }
 
         // Start the audio engine with proper error handling
@@ -185,35 +221,6 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     }
 
     // MARK: - Private Implementation
-
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.floatChannelData else { return }
-
-        let channelCount = Int(buffer.format.channelCount)
-        let frameLength = Int(buffer.frameLength)
-
-        // Calculate RMS (Root Mean Square) of the audio
-        var rms: Float = 0
-        for channel in 0..<channelCount {
-            let data = channelData[channel]
-            var sum: Float = 0
-            for frame in 0..<frameLength {
-                let sample = data[frame]
-                sum += sample * sample
-            }
-            rms += sum
-        }
-
-        rms = sqrt(rms / Float(frameLength * channelCount))
-
-        // Convert to decibels
-        let dB = 20 * log10(max(rms, 0.000001))
-
-        // Update on main thread
-        Task { @MainActor [weak self] in
-            self?.handleAudioLevel(dB)
-        }
-    }
 
     private func handleAudioLevel(_ dB: Float) {
         audioLevel = dB

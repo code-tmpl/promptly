@@ -184,10 +184,24 @@ public struct NotchPositionCalculator: Sendable {
 // MARK: - Screen Extension
 
 extension NSScreen {
-    /// Returns the screen with the camera (usually the built-in display with notch)
+    /// Returns the screen with the camera (the built-in display on MacBooks)
     public static var cameraScreen: NSScreen? {
-        // The main screen is typically the one with the camera/notch on MacBooks
-        // For external displays, you might want to detect the built-in display
+        // Prefer the built-in display (the one with the notch/camera)
+        // On MacBooks, the built-in display is identifiable by having a notch
+        // (safeAreaInsets.top > 0) or by being the localizedName "Built-in"
+        for screen in NSScreen.screens {
+            if NotchPositionCalculator.hasNotch(screen) {
+                return screen
+            }
+        }
+        // Fallback: look for built-in display by name
+        for screen in NSScreen.screens {
+            if screen.localizedName.lowercased().contains("built-in") ||
+               screen.localizedName.lowercased().contains("built in") {
+                return screen
+            }
+        }
+        // Final fallback: main screen (the one with the focused window)
         return NSScreen.main ?? NSScreen.screens.first
     }
 
