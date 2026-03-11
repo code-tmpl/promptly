@@ -1,0 +1,35 @@
+name: Promptly
+targets:
+  Promptly:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.7"
+    sources:
+      - Promptly
+    info:
+      path: Promptly/Info.plist
+      properties:
+        CFBundleIdentifier: com.cmpx575.promptly
+        NSMicrophoneUsageDescription: "Promptly needs microphone access to detect speech for voice-activated scrolling."
+        NSSupportsAutomaticTermination: false
+        LSUIElement: 1
+    entitlements:
+      path: Promptly/Promptly.entitlements
+      properties:
+        com.apple.security.device.audio-input: true
+    settings:
+      base:
+        SWIFT_VERSION: "6"
+        SWIFT_STRICT_CONCURRENCY: "complete"
+        TARGETED_DEVICE_FAMILY: "6"
+  PromptlyTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.7"
+    sources:
+      - PromptlyTests
+    dependencies:
+      - target: Promptly
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
