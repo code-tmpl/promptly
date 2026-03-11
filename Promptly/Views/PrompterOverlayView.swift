@@ -150,6 +150,8 @@ public struct PrompterOverlayView: View {
         }
         .buttonStyle(.plain)
         .help("Mirror text for physical teleprompter")
+        .accessibilityLabel(isMirrored ? "Disable mirrored text" : "Enable mirrored text")
+        .accessibilityHint("Mirrors the text horizontally for use with physical teleprompter setups")
     }
 
     // MARK: - Speed Change Popup
@@ -340,6 +342,8 @@ public struct PrompterOverlayView: View {
                 .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(state.isSpeaking ? "Voice detected, scrolling active" : "No voice detected, scrolling paused")
     }
 
     private func audioLevelColor(for index: Int) -> Color {
@@ -382,6 +386,7 @@ public struct PrompterOverlayView: View {
                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: state.currentSpeed)
+            .accessibilityLabel("Scroll speed: \(String(format: "%.1f", state.currentSpeed)) times normal")
     }
 
     private var progressIndicator: some View {
@@ -413,6 +418,7 @@ public struct PrompterOverlayView: View {
                 .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
         )
+        .accessibilityLabel("Progress: \(String(format: "%.0f", state.progress * 100)) percent complete")
     }
 
     // MARK: - Pause Indicator

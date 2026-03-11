@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import UniformTypeIdentifiers
 
 /// Main application entry point
 @main
@@ -21,6 +22,40 @@ struct PromptlyApp: App {
                     appDelegate.scriptStore.createScript()
                 }
                 .keyboardShortcut("n", modifiers: .command)
+
+                Divider()
+
+                Button("Open...") {
+                    appDelegate.importScript()
+                }
+                .keyboardShortcut("o", modifiers: .command)
+
+                Divider()
+
+                Button("Save As...") {
+                    appDelegate.exportCurrentScript()
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(appDelegate.scriptStore.currentScript == nil)
+
+                Button("Export as Plain Text...") {
+                    appDelegate.exportCurrentScriptAsText()
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(appDelegate.scriptStore.currentScript == nil)
+            }
+
+            // Undo/Redo support
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") {
+                    NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+                }
+                .keyboardShortcut("z", modifiers: .command)
+
+                Button("Redo") {
+                    NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
             }
 
             // Edit menu additions
@@ -101,6 +136,26 @@ struct PromptlyApp: App {
                 }
             }
 
+            // Window menu
+            CommandGroup(after: .windowArrangement) {
+                Divider()
+
+                Button("Minimize") {
+                    NSApp.keyWindow?.miniaturize(nil)
+                }
+                .keyboardShortcut("m", modifiers: .command)
+
+                Button("Zoom") {
+                    NSApp.keyWindow?.zoom(nil)
+                }
+
+                Divider()
+
+                Button("Bring All to Front") {
+                    NSApp.arrangeInFront(nil)
+                }
+            }
+
             // Prompter menu (after app settings)
             CommandGroup(after: .appSettings) {
                 Divider()
@@ -176,6 +231,13 @@ struct PromptlyApp: App {
                     }
                 }
             }
+
+            // About menu item
+            CommandGroup(replacing: .appInfo) {
+                Button("About Promptly") {
+                    appDelegate.showAboutPanel()
+                }
+            }
         }
 
         Settings {
@@ -205,6 +267,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let prompterViewModel: PrompterViewModel
     let keyboardShortcutManager: KeyboardShortcutManager
 
+    /// Key for tracking first launch in UserDefaults
+    private static let hasLaunchedBeforeKey = "com.promptly.hasLaunchedBefore"
+
     // Error handling
     @Published var showMicPermissionAlert = false
     @Published var showAudioErrorAlert = false
@@ -212,6 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var helpWindow: NSWindow?
     private var shortcutsWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
 
     override init() {
         self.scriptStore = ScriptStore()
@@ -228,6 +294,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Check if this is first launch
+        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: Self.hasLaunchedBeforeKey)
+
+        if !hasLaunchedBefore {
+            // Show onboarding
+            showOnboardingWindow()
+            UserDefaults.standard.set(true, forKey: Self.hasLaunchedBeforeKey)
+        }
+
         // Request microphone permission on first launch
         requestMicrophonePermission()
 
@@ -258,6 +333,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+
+        // Observe app becoming active for mic permission check
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidBecomeActive),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -286,8 +369,122 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Brief delay to let screen changes settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 // The window controller will handle repositioning on next frame
+                _ = self
             }
         }
+    }
+
+    @objc private func handleAppDidBecomeActive(_ notification: Notification) {
+        // Re-check microphone permission when app becomes active
+        // This handles the case where user granted permission in System Settings
+        checkMicrophonePermission()
+    }
+
+    private func checkMicrophonePermission() {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        if status == .denied || status == .restricted {
+            // If prompting is active and permission was revoked, stop
+            if prompterViewModel.state.isActive {
+                prompterViewModel.stopPrompting()
+                prompterViewModel.showError(.microphonePermissionDenied)
+            }
+        }
+    }
+
+    // MARK: - Import/Export
+
+    /// Imports a script from a text file
+    func importScript() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.plainText, .text]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.title = "Open Script"
+        panel.message = "Select a text file to import as a script"
+
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+
+            Task { @MainActor [weak self] in
+                do {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    let title = url.deletingPathExtension().lastPathComponent
+                    self?.scriptStore.createScript(title: title, content: content)
+                } catch {
+                    let alert = NSAlert()
+                    alert.messageText = "Import Failed"
+                    alert.informativeText = "Could not read the file: \(error.localizedDescription)"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    /// Exports the current script to a file
+    func exportCurrentScript() {
+        guard let script = scriptStore.currentScript else { return }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "\(script.title).txt"
+        panel.title = "Save Script As"
+        panel.message = "Choose a location to save your script"
+
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+
+            do {
+                try script.content.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                Task { @MainActor in
+                    let alert = NSAlert()
+                    alert.messageText = "Export Failed"
+                    alert.informativeText = "Could not save the file: \(error.localizedDescription)"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    /// Exports the current script as plain text
+    func exportCurrentScriptAsText() {
+        exportCurrentScript()
+    }
+
+    // MARK: - About Panel
+
+    func showAboutPanel() {
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+
+        let creditsText = """
+        Professional teleprompter for macOS.
+
+        Designed for seamless presentations with voice-activated scrolling and screen-share invisible windows.
+
+        © 2025 All Rights Reserved
+        """
+        let credits = NSAttributedString(
+            string: creditsText,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
+
+        let options: [NSApplication.AboutPanelOptionKey: Any] = [
+            .applicationName: "Promptly",
+            .applicationVersion: appVersion,
+            .version: buildNumber,
+            .credits: credits
+        ]
+
+        NSApp.orderFrontStandardAboutPanel(options: options)
     }
 
     // MARK: - Help Windows
@@ -320,6 +517,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         shortcutsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - Onboarding
+
+    func showOnboardingWindow() {
+        if onboardingWindow == nil {
+            let onboardingView = OnboardingView { [weak self] in
+                self?.onboardingWindow?.close()
+                self?.onboardingWindow = nil
+            }
+            let hostingController = NSHostingController(rootView: onboardingView)
+
+            onboardingWindow = NSWindow(contentViewController: hostingController)
+            onboardingWindow?.title = "Welcome to Promptly"
+            onboardingWindow?.styleMask = [.titled, .closable]
+            onboardingWindow?.setContentSize(NSSize(width: 550, height: 500))
+            onboardingWindow?.center()
+        }
+
+        onboardingWindow?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Private
@@ -371,6 +588,124 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - Onboarding View
+
+struct OnboardingView: View {
+    let onComplete: () -> Void
+    @State private var currentPage = 0
+
+    private let pages: [(title: String, description: String, systemImage: String)] = [
+        (
+            title: "Welcome to Promptly",
+            description: "Your professional teleprompter for macOS. Create scripts, start prompting, and deliver seamless presentations.",
+            systemImage: "play.rectangle.fill"
+        ),
+        (
+            title: "Voice-Activated Scrolling",
+            description: "Promptly listens to your voice and scrolls automatically when you speak. When you pause, the scrolling pauses too.",
+            systemImage: "waveform"
+        ),
+        (
+            title: "Microphone Permission",
+            description: "Promptly needs microphone access to detect your voice. You'll be prompted to grant access. This is required for voice-activated scrolling.",
+            systemImage: "mic.fill"
+        ),
+        (
+            title: "Notch & Floating Modes",
+            description: "Position text at the top of your screen near the camera (Notch Mode) or use a floating window you can place anywhere (Floating Mode).",
+            systemImage: "macwindow"
+        ),
+        (
+            title: "Screen-Share Invisible",
+            description: "The prompter window is invisible to screen recordings and screen sharing. Your audience only sees you, not the script.",
+            systemImage: "eye.slash.fill"
+        )
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Page content
+            TabView(selection: $currentPage) {
+                ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
+                    VStack(spacing: 24) {
+                        Spacer()
+
+                        Image(systemName: page.systemImage)
+                            .font(.system(size: 64))
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityHidden(true)
+
+                        Text(page.title)
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.center)
+
+                        Text(page.description)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 400)
+
+                        Spacer()
+                    }
+                    .padding(32)
+                    .tag(index)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(page.title). \(page.description)")
+                }
+            }
+            .tabViewStyle(.automatic)
+
+            Divider()
+
+            // Navigation
+            HStack {
+                // Page indicators
+                HStack(spacing: 8) {
+                    ForEach(0..<pages.count, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentPage ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                            .accessibilityHidden(true)
+                    }
+                }
+
+                Spacer()
+
+                // Navigation buttons
+                HStack(spacing: 12) {
+                    if currentPage > 0 {
+                        Button("Back") {
+                            withAnimation {
+                                currentPage -= 1
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Go to previous page")
+                    }
+
+                    if currentPage < pages.count - 1 {
+                        Button("Next") {
+                            withAnimation {
+                                currentPage += 1
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityLabel("Go to next page")
+                    } else {
+                        Button("Get Started") {
+                            onComplete()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityLabel("Complete onboarding and start using Promptly")
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
 // MARK: - Help View
 
 struct HelpView: View {
@@ -412,6 +747,7 @@ struct HelpView: View {
             }
             .padding(24)
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func helpSection(title: String, content: String) -> some View {
@@ -422,6 +758,7 @@ struct HelpView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -441,6 +778,8 @@ struct KeyboardShortcutsView: View {
             List {
                 Section("General") {
                     shortcutRow("New Script", "⌘N")
+                    shortcutRow("Open...", "⌘O")
+                    shortcutRow("Save As...", "⇧⌘S")
                     shortcutRow("Settings", "⌘,")
                     shortcutRow("Help", "⌘?")
                 }
@@ -458,9 +797,19 @@ struct KeyboardShortcutsView: View {
                     shortcutRow("Decrease Font", "⌘-")
                     shortcutRow("Reset Font", "⌘0")
                 }
+
+                Section("Edit") {
+                    shortcutRow("Undo", "⌘Z")
+                    shortcutRow("Redo", "⇧⌘Z")
+                    shortcutRow("Cut", "⌘X")
+                    shortcutRow("Copy", "⌘C")
+                    shortcutRow("Paste", "⌘V")
+                    shortcutRow("Select All", "⌘A")
+                }
             }
             .listStyle(.inset)
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func shortcutRow(_ action: String, _ shortcut: String) -> some View {
@@ -477,5 +826,7 @@ struct KeyboardShortcutsView: View {
                         .fill(Color(nsColor: .controlBackgroundColor))
                 )
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(action), keyboard shortcut \(shortcut)")
     }
 }

@@ -153,14 +153,17 @@ public struct EditorView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                 TextField("Search scripts...", text: $searchText)
                     .textFieldStyle(.plain)
+                    .accessibilityLabel("Search scripts")
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
                 }
             }
             .padding(8)
@@ -243,6 +246,7 @@ public struct EditorView: View {
                     Image(systemName: "plus")
                 }
                 .help("New Script (⌘N)")
+                .accessibilityLabel("Create new script")
             }
         }
     }
@@ -452,6 +456,7 @@ public struct EditorView: View {
             Image(systemName: "doc.text")
                 .font(.system(size: 64))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             Text("No Script Selected")
                 .font(.title2)
@@ -465,8 +470,10 @@ public struct EditorView: View {
                 createNewScript()
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityLabel("Create new script")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Toolbar
@@ -480,12 +487,15 @@ public struct EditorView: View {
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(scriptStore.currentScript == nil)
             .help("Start Prompting (⌘⏎)")
+            .accessibilityLabel("Start prompting")
+            .accessibilityHint("Starts the teleprompter with the current script")
 
             Button(action: { isShowingSettings = true }) {
                 Label("Settings", systemImage: "gearshape")
             }
             .keyboardShortcut(",", modifiers: .command)
             .help("Settings (⌘,)")
+            .accessibilityLabel("Open settings")
         }
     }
 
