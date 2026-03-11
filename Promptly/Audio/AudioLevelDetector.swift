@@ -276,6 +276,12 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             isRunning = false
         }
 
+        // Finish async stream continuations so consumers exit for-await loops
+        speakingContinuation?.finish()
+        speakingContinuation = nil
+        audioLevelContinuation?.finish()
+        audioLevelContinuation = nil
+
         isSpeaking = false
         audioLevel = -60.0
     }
@@ -285,16 +291,25 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
         threshold = dB
     }
 
-    /// Provides an async stream of speaking state changes
+    /// Provides an async stream of speaking state changes.
+    /// Calling this again finishes any previous stream so old consumers don't hang.
     public func speakingStateStream() -> AsyncStream<Bool> {
-        AsyncStream { continuation in
+        // Finish the previous continuation so any old consumer exits for-await
+        speakingContinuation?.finish()
+        speakingContinuation = nil
+
+        return AsyncStream { continuation in
             self.speakingContinuation = continuation
         }
     }
 
-    /// Provides an async stream of audio level changes
+    /// Provides an async stream of audio level changes.
+    /// Calling this again finishes any previous stream so old consumers don't hang.
     public func audioLevelStream() -> AsyncStream<Float> {
-        AsyncStream { continuation in
+        audioLevelContinuation?.finish()
+        audioLevelContinuation = nil
+
+        return AsyncStream { continuation in
             self.audioLevelContinuation = continuation
         }
     }
