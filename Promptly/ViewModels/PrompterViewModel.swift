@@ -267,7 +267,7 @@ public final class PrompterViewModel {
 
         // Observe scroll offset changes from the controller
         stateUpdateCancellable = scrollController.$scrollOffset
-            .receive(on: DispatchQueue.main)
+            .receive(on: RunLoop.main)
             .sink { [weak self] offset in
                 self?.state.scrollOffset = offset
             }

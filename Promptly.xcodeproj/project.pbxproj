@@ -28,6 +28,7 @@
 		8A3BF483CB70DE480707395F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5794D094D32F5F33847A9611 /* Assets.xcassets */; };
 		8C508871E0469E89FDBE98A5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5BEF90431588EE38F6D1C0 /* SettingsView.swift */; };
 		ABAF0B408564082CEE1DCAF1 /* VoiceScrollControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D1D9FAA40FF55886369BB7 /* VoiceScrollControllerTests.swift */; };
+		B6B280E83424AE66DBE467CF /* LifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AD71629F8E6092BEADEBD3D /* LifecycleTests.swift */; };
 		D348F894D211AAACAF7E43D7 /* PrompterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBC856E475381EB0395F21E /* PrompterPanel.swift */; };
 		D7C439C7186E961BDE179391 /* AudioLevelDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DB0FC33F9A56AB89CA90A5 /* AudioLevelDetector.swift */; };
 		D94F365E1BDF337E1F566C18 /* AudioLevelDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D68A59E35C2BC69B20CBF0 /* AudioLevelDetectorTests.swift */; };
@@ -60,6 +61,7 @@
 		660EFFEDC4E2AD8AC32F48F3 /* ScriptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptStore.swift; sourceTree = "<group>"; };
 		6F9705B635B597510605C226 /* PromptlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		76878D8CF7F6DE21A1DEFA57 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		7AD71629F8E6092BEADEBD3D /* LifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleTests.swift; sourceTree = "<group>"; };
 		80E6A721F7D15DBDE07C5409 /* PrompterOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrompterOverlayView.swift; sourceTree = "<group>"; };
 		83475ABAA22DB35D427EE392 /* NotchPositionCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPositionCalculatorTests.swift; sourceTree = "<group>"; };
 		96631C26E918AF8711135833 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 			children = (
 				5E1514B089CE7114EB64D996 /* AppSettingsTests.swift */,
 				12D68A59E35C2BC69B20CBF0 /* AudioLevelDetectorTests.swift */,
+				7AD71629F8E6092BEADEBD3D /* LifecycleTests.swift */,
 				83475ABAA22DB35D427EE392 /* NotchPositionCalculatorTests.swift */,
 				D263C368401B3CBAD0060492 /* PrompterViewModelTests.swift */,
 				65F0CBFC6CADA1B733C7B375 /* ScriptModelTests.swift */,
@@ -288,6 +291,7 @@
 			files = (
 				431A8524D5C183AE29F50114 /* AppSettingsTests.swift in Sources */,
 				D94F365E1BDF337E1F566C18 /* AudioLevelDetectorTests.swift in Sources */,
+				B6B280E83424AE66DBE467CF /* LifecycleTests.swift in Sources */,
 				46928980D71D874732BC7221 /* NotchPositionCalculatorTests.swift in Sources */,
 				875CF1057A3A31AC61E053EE /* PrompterViewModelTests.swift in Sources */,
 				16269496D21062962A5F3308 /* ScriptModelTests.swift in Sources */,

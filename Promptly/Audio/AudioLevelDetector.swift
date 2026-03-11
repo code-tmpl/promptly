@@ -37,6 +37,11 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     /// Preferred audio input device unique ID (nil = system default)
     public var preferredDeviceID: String?
 
+    // MARK: - Recovery
+
+    /// Task for audio config recovery — stored to cancel on re-entry
+    private var configRecoveryTask: Task<Void, Never>?
+
     // MARK: - Async Streams
 
     private var speakingContinuation: AsyncStream<Bool>.Continuation?
@@ -90,19 +95,20 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             isInterrupted = true
             stop()
 
-            // Attempt to restart after a brief delay
-            // Use Task { @MainActor } — DispatchQueue.main closures are NOT
-            // recognized as @MainActor-isolated in Swift 6 strict concurrency
-            Task { @MainActor [weak self] in
+            // Cancel any previous recovery task to prevent races
+            // (e.g., bluetooth headset flapping connect/disconnect rapidly)
+            configRecoveryTask?.cancel()
+            configRecoveryTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
                 guard let self, self.isInterrupted else { return }
                 do {
                     try self.start()
                     self.isInterrupted = false
                 } catch {
-                    // Remain in interrupted state; user may need to restart manually
                     print("Failed to restart audio after configuration change: \(error)")
                 }
+                self.configRecoveryTask = nil
             }
         }
     }
@@ -159,7 +165,10 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
 
         // Set the input device on the audio engine's input node
         let inputNode = audioEngine.inputNode
-        let audioUnit = inputNode.audioUnit!
+        guard let audioUnit = inputNode.audioUnit else {
+            print("Audio unit not available — cannot set input device")
+            return
+        }
         var mutableDeviceID = deviceID
         let setStatus = AudioUnitSetProperty(
             audioUnit,
@@ -393,6 +402,11 @@ extension AudioLevelDetector {
     /// Simulates audio input for testing purposes
     public func simulateAudioLevel(_ dB: Float) {
         handleAudioLevel(dB)
+    }
+
+    /// Simulates an audio configuration change (e.g., headset disconnect)
+    public func simulateConfigurationChange() {
+        handleConfigurationChange()
     }
 
     /// Returns the current threshold for testing

@@ -104,6 +104,11 @@ public final class KeyboardShortcutManager {
 
         return nil
     }
+
+    /// Exposes matchShortcut for testing without needing NSEvent
+    public func matchShortcutForTesting(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> KeyboardShortcut? {
+        matchShortcut(keyCode: keyCode, modifiers: modifiers)
+    }
 }
 
 // MARK: - NSEvent Extension

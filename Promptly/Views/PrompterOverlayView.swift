@@ -38,6 +38,7 @@ public struct PrompterOverlayView: View {
     @State private var contentHeight: CGFloat = 0
     @State private var isMirrored: Bool = false
     @State private var showSpeedChangeIndicator: Bool = false
+    @State private var speedDismissTask: Task<Void, Never>?
     @State private var lastSpeed: Double = 1.0
 
     /// Memoized script lines - computed once per content change
@@ -159,8 +160,11 @@ public struct PrompterOverlayView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
             showSpeedChangeIndicator = true
         }
-        Task { @MainActor in
+        // Cancel previous dismiss task so rapid speed changes don't race
+        speedDismissTask?.cancel()
+        speedDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.2)) {
                 showSpeedChangeIndicator = false
             }
