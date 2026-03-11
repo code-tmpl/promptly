@@ -1,9 +1,13 @@
 import SwiftUI
+import AVFoundation
 
 /// Settings view for customizing prompter appearance and behavior
 public struct SettingsView: View {
     @Bindable var settingsManager: SettingsManager
     @Environment(\.dismiss) private var dismiss
+
+    @State private var availableAudioDevices: [AudioDevice] = []
+    @State private var selectedAudioDeviceID: String?
 
     public init(settingsManager: SettingsManager) {
         self.settingsManager = settingsManager
@@ -16,6 +20,8 @@ public struct SettingsView: View {
                 scrollingSection
                 audioSection
                 behaviorSection
+                keyboardShortcutsSection
+                aboutSection
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
@@ -33,8 +39,30 @@ public struct SettingsView: View {
                     .foregroundStyle(.red)
                 }
             }
+            .onAppear {
+                loadAudioDevices()
+            }
         }
-        .frame(minWidth: 450, minHeight: 500)
+        .frame(minWidth: 500, minHeight: 600)
+    }
+
+    // MARK: - Audio Device Loading
+
+    private func loadAudioDevices() {
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .builtInMicrophone, .externalUnknown],
+            mediaType: .audio,
+            position: .unspecified
+        )
+
+        availableAudioDevices = discoverySession.devices.map { device in
+            AudioDevice(id: device.uniqueID, name: device.localizedName)
+        }
+
+        // Set default selection to the first device if not set
+        if selectedAudioDeviceID == nil, let firstDevice = availableAudioDevices.first {
+            selectedAudioDeviceID = firstDevice.id
+        }
     }
 
     // MARK: - Appearance Section
@@ -47,6 +75,7 @@ public struct SettingsView: View {
                 Spacer()
                 Text("\(Int(settingsManager.fontSize)) pt")
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
             Slider(
                 value: $settingsManager.fontSize,
@@ -66,6 +95,7 @@ public struct SettingsView: View {
                 Spacer()
                 Text("\(Int(settingsManager.backgroundOpacity * 100))%")
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
             Slider(
                 value: $settingsManager.backgroundOpacity,
@@ -114,6 +144,7 @@ public struct SettingsView: View {
                 Spacer()
                 Text(String(format: "%.2fx", settingsManager.scrollSpeed))
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
             Slider(
                 value: $settingsManager.scrollSpeed,
@@ -133,6 +164,23 @@ public struct SettingsView: View {
 
     private var audioSection: some View {
         Section("Microphone") {
+            // Microphone Source Picker
+            if !availableAudioDevices.isEmpty {
+                Picker("Audio Input", selection: $selectedAudioDeviceID) {
+                    ForEach(availableAudioDevices) { device in
+                        Text(device.name).tag(device.id as String?)
+                    }
+                }
+                .pickerStyle(.menu)
+            } else {
+                HStack {
+                    Text("Audio Input")
+                    Spacer()
+                    Text("No devices found")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             // Mic Sensitivity
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -140,6 +188,7 @@ public struct SettingsView: View {
                     Spacer()
                     Text("\(Int(settingsManager.micSensitivity)) dB")
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
 
                 Slider(
@@ -194,12 +243,9 @@ public struct SettingsView: View {
             }
         }
     }
-}
 
-// MARK: - Keyboard Shortcuts Section (Future)
+    // MARK: - Keyboard Shortcuts Section
 
-extension SettingsView {
-    @ViewBuilder
     private var keyboardShortcutsSection: some View {
         Section("Keyboard Shortcuts") {
             shortcutRow("Start/Stop Prompting", shortcut: "⌘⏎")
@@ -207,8 +253,8 @@ extension SettingsView {
             shortcutRow("Speed Up", shortcut: "⌘↑")
             shortcutRow("Speed Down", shortcut: "⌘↓")
             shortcutRow("Toggle Mode", shortcut: "⌘T")
-            shortcutRow("Settings", shortcut: "⌘,")
             shortcutRow("New Script", shortcut: "⌘N")
+            shortcutRow("Settings", shortcut: "⌘,")
         }
     }
 
@@ -219,7 +265,69 @@ extension SettingsView {
             Text(shortcut)
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
         }
+    }
+
+    // MARK: - About Section
+
+    private var aboutSection: some View {
+        Section("About") {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Promptly")
+                        .font(.headline)
+                    Text("Professional Teleprompter for macOS")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Build \(buildNumber)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            HStack {
+                Text("Developer")
+                Spacer()
+                Text("Your Name")
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text("Copyright")
+                Spacer()
+                Text("© 2024 All Rights Reserved")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 }
 
+// MARK: - Audio Device Model
+
+struct AudioDevice: Identifiable, Hashable {
+    let id: String
+    let name: String
+}

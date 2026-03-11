@@ -1,7 +1,9 @@
 import Foundation
+import SwiftUI
 
 /// Runtime state of the active prompter session
 @MainActor
+@Observable
 public final class PrompterState: Sendable {
     /// Whether the prompter is currently active (visible and operational)
     public var isActive: Bool
