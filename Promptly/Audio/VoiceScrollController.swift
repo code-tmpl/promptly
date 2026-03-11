@@ -44,6 +44,10 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
 
     public init() {}
 
+    // Note: cleanup() must be called before deallocation to stop CVDisplayLink.
+    // Swift 6 strict concurrency prevents accessing @MainActor properties in deinit.
+    // The PromptlyApp/PrompterViewModel calls cleanup() before releasing this object.
+
     /// Call this to clean up resources before deallocation
     nonisolated public func cleanup() {
         Task { @MainActor in
@@ -148,10 +152,13 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
 
         source.resume()
 
-        // Set the callback
-        let opaqueSource = Unmanaged.passUnretained(source).toOpaque()
+        // Set the callback — passRetained to prevent use-after-free.
+        // The CVDisplayLink callback runs on a separate thread and can fire
+        // even after CVDisplayLinkStop is called (per Apple docs).
+        let opaqueSource = Unmanaged.passRetained(source).toOpaque()
         CVDisplayLinkSetOutputCallback(link, { _, _, _, _, _, userInfo -> CVReturn in
             guard let userInfo = userInfo else { return kCVReturnSuccess }
+            // takeUnretainedValue — we manage the retain manually in teardown
             let source = Unmanaged<DispatchSourceUserDataAdd>.fromOpaque(userInfo).takeUnretainedValue()
             source.add(data: 1)
             return kCVReturnSuccess
@@ -163,12 +170,20 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
 
     private func teardownDisplayLink() {
         if let link = displayLink {
+            // Stop first — callback may still fire once more after this
             CVDisplayLinkStop(link)
+            // Clear the callback to prevent any more dispatches
+            CVDisplayLinkSetOutputCallback(link, nil, nil)
             displayLink = nil
         }
 
-        displayLinkSource?.cancel()
-        displayLinkSource = nil
+        // Now safe to release the source — no more callbacks can reach it
+        if let source = displayLinkSource {
+            // Balance the passRetained from setup
+            Unmanaged.passUnretained(source).release()
+            source.cancel()
+            displayLinkSource = nil
+        }
     }
 
     private func displayLinkFired() {

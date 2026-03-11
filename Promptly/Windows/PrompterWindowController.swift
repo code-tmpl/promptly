@@ -24,6 +24,9 @@ public final class PrompterWindowController {
     /// Callback when the window is closed
     public var onClose: (() -> Void)?
 
+    /// Stored notification observer tokens (must be retained for block-based observers)
+    private var windowObservers: [NSObjectProtocol] = []
+
     // MARK: - Initialization
 
     public init(mode: PrompterMode, settingsManager: SettingsManager) {
@@ -137,7 +140,8 @@ extension PrompterWindowController {
     public func startObservingWindowPosition() {
         guard mode == .floating else { return }
 
-        NotificationCenter.default.addObserver(
+        // Store the observer tokens so they stay alive and can be removed later
+        let moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: panel,
             queue: .main
@@ -146,8 +150,9 @@ extension PrompterWindowController {
                 self?.saveWindowPosition()
             }
         }
+        windowObservers.append(moveObserver)
 
-        NotificationCenter.default.addObserver(
+        let resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification,
             object: panel,
             queue: .main
@@ -156,19 +161,14 @@ extension PrompterWindowController {
                 self?.saveWindowPosition()
             }
         }
+        windowObservers.append(resizeObserver)
     }
 
     /// Stops observing window frame changes
     public func stopObservingWindowPosition() {
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSWindow.didMoveNotification,
-            object: panel
-        )
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSWindow.didResizeNotification,
-            object: panel
-        )
+        for observer in windowObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        windowObservers.removeAll()
     }
 }

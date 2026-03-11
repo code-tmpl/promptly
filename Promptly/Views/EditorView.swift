@@ -411,8 +411,10 @@ public struct EditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: editorContent) { _, newContent in
                         // Sync changes back to the store
-                        if lastEditedScriptID == script.id {
-                            scriptStore.updateContent(of: script, to: newContent)
+                        // Fetch the CURRENT script from the store (not the stale struct snapshot)
+                        // to avoid overwriting title changes with old data
+                        if let currentScript = scriptStore.scripts.first(where: { $0.id == lastEditedScriptID }) {
+                            scriptStore.updateContent(of: currentScript, to: newContent)
                         }
                     }
                     .accessibilityLabel("Script editor")
