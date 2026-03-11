@@ -2,6 +2,50 @@ import Foundation
 import SwiftUI
 import Combine
 import AppKit
+import AVFoundation
+
+/// Error types for prompter operations
+public enum PrompterError: Error, LocalizedError, Equatable {
+    case noScriptSelected
+    case emptyScript
+    case microphonePermissionDenied
+    case audioEngineFailure(String)
+    case scriptSaveFailure(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noScriptSelected:
+            return "No script selected"
+        case .emptyScript:
+            return "The selected script is empty"
+        case .microphonePermissionDenied:
+            return "Microphone access is required for voice-activated scrolling"
+        case .audioEngineFailure(let message):
+            return "Audio engine error: \(message)"
+        case .scriptSaveFailure(let message):
+            return "Failed to save script: \(message)"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .noScriptSelected:
+            return "Create or select a script from the sidebar"
+        case .emptyScript:
+            return "Add some text to your script before starting"
+        case .microphonePermissionDenied:
+            return "Open System Settings to grant microphone access"
+        case .audioEngineFailure:
+            return "Check your audio settings and try again"
+        case .scriptSaveFailure:
+            return "Check available disk space and file permissions"
+        }
+    }
+
+    public var canOpenSettings: Bool {
+        self == .microphonePermissionDenied
+    }
+}
 
 /// Main view model coordinating the prompter functionality
 @MainActor
@@ -12,8 +56,14 @@ public final class PrompterViewModel {
     /// The current prompter state
     public let state: PrompterState
 
-    /// Error message for display
+    /// Error message for display (legacy)
     public var errorMessage: String?
+
+    /// Current error for alert display
+    public var currentError: PrompterError?
+
+    /// Whether to show error alert
+    public var showErrorAlert: Bool = false
 
     // MARK: - Dependencies
 
@@ -56,10 +106,36 @@ public final class PrompterViewModel {
         scriptStore.currentScript
     }
 
+    /// Displays an error to the user
+    public func showError(_ error: PrompterError) {
+        currentError = error
+        errorMessage = error.localizedDescription
+        showErrorAlert = true
+    }
+
+    /// Clears the current error
+    public func clearError() {
+        currentError = nil
+        errorMessage = nil
+        showErrorAlert = false
+    }
+
     /// Starts the prompter with optional countdown
     public func startPrompting() {
-        guard let script = currentScript, !script.content.isEmpty else {
-            errorMessage = "No script selected or script is empty"
+        guard let script = currentScript else {
+            showError(.noScriptSelected)
+            return
+        }
+
+        guard !script.content.isEmpty else {
+            showError(.emptyScript)
+            return
+        }
+
+        // Check microphone permission
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        if authStatus == .denied || authStatus == .restricted {
+            showError(.microphonePermissionDenied)
             return
         }
 
@@ -83,7 +159,16 @@ public final class PrompterViewModel {
             }
         )
 
+        // Wire up hover callbacks for pause/resume
+        windowController?.onMouseEntered = { [weak self] in
+            self?.pause()
+        }
+        windowController?.onMouseExited = { [weak self] in
+            self?.resume()
+        }
+
         windowController?.showWindow(with: overlayView)
+        windowController?.startObservingWindowPosition()
 
         // Start countdown
         startCountdown()
@@ -97,6 +182,7 @@ public final class PrompterViewModel {
         audioDetector.stop()
         scrollController.stop()
 
+        windowController?.stopObservingWindowPosition()
         windowController?.closeWindow()
         windowController = nil
 
@@ -220,7 +306,7 @@ public final class PrompterViewModel {
         do {
             try audioDetector.start()
         } catch {
-            errorMessage = "Failed to start audio: \(error.localizedDescription)"
+            showError(.audioEngineFailure(error.localizedDescription))
             stopPrompting()
             return
         }
