@@ -2,6 +2,20 @@ import Foundation
 import Combine
 import QuartzCore
 
+private func displayLinkCallback(
+    _ displayLink: CVDisplayLink,
+    _ inNow: UnsafePointer<CVTimeStamp>,
+    _ inOutputTime: UnsafePointer<CVTimeStamp>,
+    _ flagsIn: CVOptionFlags,
+    _ flagsOut: UnsafeMutablePointer<CVOptionFlags>,
+    _ displayLinkContext: UnsafeMutableRawPointer?
+) -> CVReturn {
+    guard let userInfo = displayLinkContext else { return kCVReturnSuccess }
+    let source = Unmanaged<DispatchSourceUserDataAdd>.fromOpaque(userInfo).takeUnretainedValue()
+    source.add(data: 1)
+    return kCVReturnSuccess
+}
+
 /// Controls scroll advancement based on voice activity and user input
 @MainActor
 public final class VoiceScrollController: ObservableObject, @unchecked Sendable {
@@ -61,7 +75,10 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
         audioDetector.$isSpeaking
             .receive(on: RunLoop.main)
             .sink { [weak self] speaking in
-                self?.handleSpeakingChange(speaking)
+                // MainActor hop: RunLoop.main doesn't respect @MainActor isolation
+                Task { @MainActor [weak self] in
+                    self?.handleSpeakingChange(speaking)
+                }
             }
             .store(in: &cancellables)
     }
@@ -154,14 +171,10 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
         // Set the callback — passRetained to prevent use-after-free.
         // The CVDisplayLink callback runs on a separate thread and can fire
         // even after CVDisplayLinkStop is called (per Apple docs).
+        // Use file-level callback function — inline closures inherit @MainActor
+        // isolation from the enclosing class, which crashes on the CVDisplayLink thread
         let opaqueSource = Unmanaged.passRetained(source).toOpaque()
-        CVDisplayLinkSetOutputCallback(link, { _, _, _, _, _, userInfo -> CVReturn in
-            guard let userInfo = userInfo else { return kCVReturnSuccess }
-            // takeUnretainedValue — we manage the retain manually in teardown
-            let source = Unmanaged<DispatchSourceUserDataAdd>.fromOpaque(userInfo).takeUnretainedValue()
-            source.add(data: 1)
-            return kCVReturnSuccess
-        }, opaqueSource)
+        CVDisplayLinkSetOutputCallback(link, displayLinkCallback, opaqueSource)
 
         CVDisplayLinkStart(link)
         return true
@@ -185,6 +198,7 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
         }
     }
 
+    @MainActor
     private func displayLinkFired() {
         guard isScrolling, !isPaused, isSpeaking else { return }
 
