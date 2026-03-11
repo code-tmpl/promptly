@@ -551,6 +551,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyboardShortcutManager.onShortcut = { [weak self] shortcut in
             self?.prompterViewModel.handleKeyboardShortcut(shortcut)
         }
+        // Wire prompter state to keyboard manager
+        prompterViewModel.onActiveStateChanged = { [weak self] isActive in
+            self?.keyboardShortcutManager.isPrompterActive = isActive
+        }
         keyboardShortcutManager.startMonitoring()
     }
 

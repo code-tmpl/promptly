@@ -72,6 +72,11 @@ public final class PrompterViewModel {
     public let audioDetector: AudioLevelDetector
     public let scrollController: VoiceScrollController
 
+    // MARK: - Callbacks
+
+    /// Called when the prompter active state changes (for keyboard shortcut gating)
+    public var onActiveStateChanged: ((Bool) -> Void)?
+
     // MARK: - Window Management
 
     private var windowController: PrompterWindowController?
@@ -188,6 +193,7 @@ public final class PrompterViewModel {
 
         state.isActive = false
         state.isCountingDown = false
+        onActiveStateChanged?(false)
     }
 
     /// Toggles between notch and floating mode
@@ -298,6 +304,7 @@ public final class PrompterViewModel {
     private func beginPrompting() {
         state.isCountingDown = false
         state.isActive = true
+        onActiveStateChanged?(true)
 
         // Update audio threshold from settings
         audioDetector.updateThreshold(settingsManager.micSensitivity)

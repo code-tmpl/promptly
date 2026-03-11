@@ -16,6 +16,9 @@ public final class KeyboardShortcutManager {
     /// Callback for handling shortcuts
     public var onShortcut: ((KeyboardShortcut) -> Void)?
 
+    /// Whether the prompter is currently active (shortcuts like Space only work when active)
+    public var isPrompterActive: Bool = false
+
     /// Local event monitor for key events
     private var localMonitor: Any?
 
@@ -73,7 +76,14 @@ public final class KeyboardShortcutManager {
         }
 
         // Space - Pause/Resume (no modifiers)
-        if keyCode == KeyCode.space && modifiers.isEmpty {
+        // ONLY when prompter is active AND focus is NOT in a text editor
+        // Otherwise, space is eaten and users can't type spaces in their scripts
+        if keyCode == KeyCode.space && modifiers.isEmpty && isPrompterActive {
+            // Check if the first responder is a text input — if so, don't consume
+            if let firstResponder = NSApp.keyWindow?.firstResponder,
+               firstResponder is NSTextView || firstResponder is NSTextField {
+                return nil // Let the space through to the text editor
+            }
             return .pauseResume
         }
 
