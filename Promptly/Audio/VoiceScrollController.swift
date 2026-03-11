@@ -44,15 +44,14 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
 
     public init() {}
 
-    // Note: cleanup() must be called before deallocation to stop CVDisplayLink.
+    // cleanup() must be called before deallocation to stop CVDisplayLink.
     // Swift 6 strict concurrency prevents accessing @MainActor properties in deinit.
-    // The PromptlyApp/PrompterViewModel calls cleanup() before releasing this object.
+    // The PrompterViewModel.stopPrompting() calls stop() synchronously before releasing.
 
-    /// Call this to clean up resources before deallocation
-    nonisolated public func cleanup() {
-        Task { @MainActor in
-            self.stop()
-        }
+    /// Call this to clean up resources before deallocation.
+    /// Must be called from @MainActor context (not async fire-and-forget).
+    public func cleanup() {
+        stop()
     }
 
     // MARK: - Public API

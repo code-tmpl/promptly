@@ -83,6 +83,10 @@ public final class PrompterViewModel {
     private var countdownTimer: Timer?
     private var stateUpdateCancellable: AnyCancellable?
 
+    /// Stored async tasks for cancellation (prevents retain cycles)
+    private var speakingTask: Task<Void, Never>?
+    private var audioLevelTask: Task<Void, Never>?
+
     public init(
         scriptStore: ScriptStore,
         settingsManager: SettingsManager,
@@ -184,6 +188,9 @@ public final class PrompterViewModel {
         countdownTimer?.invalidate()
         countdownTimer = nil
 
+        // Cancel async observation tasks to break retain cycles
+        cancelObservationTasks()
+
         audioDetector.stop()
         scrollController.stop()
 
@@ -265,21 +272,32 @@ public final class PrompterViewModel {
                 self?.state.scrollOffset = offset
             }
 
-        // Observe speaking state
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            for await isSpeaking in self.audioDetector.speakingStateStream() {
-                self.state.isSpeaking = isSpeaking
+        // Observe speaking state — store the task so we can cancel it
+        // Uses [weak self] inside the loop body to avoid retain cycle
+        speakingTask = Task { @MainActor [weak self] in
+            guard let detector = self?.audioDetector else { return }
+            for await isSpeaking in detector.speakingStateStream() {
+                guard !Task.isCancelled else { break }
+                self?.state.isSpeaking = isSpeaking
             }
         }
 
-        // Observe audio level
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            for await level in self.audioDetector.audioLevelStream() {
-                self.state.audioLevel = level
+        // Observe audio level — same pattern
+        audioLevelTask = Task { @MainActor [weak self] in
+            guard let detector = self?.audioDetector else { return }
+            for await level in detector.audioLevelStream() {
+                guard !Task.isCancelled else { break }
+                self?.state.audioLevel = level
             }
         }
+    }
+
+    /// Cancels the async observation tasks to break retain cycles
+    private func cancelObservationTasks() {
+        speakingTask?.cancel()
+        speakingTask = nil
+        audioLevelTask?.cancel()
+        audioLevelTask = nil
     }
 
     private func startCountdown() {
@@ -289,6 +307,8 @@ public final class PrompterViewModel {
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // Timer is invalidated via self.countdownTimer, not the closure parameter
+                // This avoids sending non-Sendable Timer across isolation boundaries
 
                 self.state.countdownValue -= 1
 
