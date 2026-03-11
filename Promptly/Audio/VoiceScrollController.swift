@@ -186,7 +186,7 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     // MARK: - Fallback Timer
 
     private func setupFallbackTimer() {
-        fallbackTimer = Timer.scheduledTimer(
+        let timer = Timer.scheduledTimer(
             withTimeInterval: targetFrameRate,
             repeats: true
         ) { [weak self] _ in
@@ -194,7 +194,8 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
                 self?.timerFired()
             }
         }
-        RunLoop.main.add(fallbackTimer!, forMode: .common)
+        fallbackTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func teardownFallbackTimer() {

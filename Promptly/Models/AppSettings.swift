@@ -27,10 +27,26 @@ public enum CountdownDuration: Int, Codable, CaseIterable, Sendable {
 
 /// Application settings stored in UserDefaults
 public struct AppSettings: Codable, Equatable, Sendable {
+    // MARK: - Validation Ranges
+
+    /// Valid range for font size (points)
+    public static let fontSizeRange: ClosedRange<CGFloat> = 8...72
+
+    /// Valid range for background opacity
+    public static let opacityRange: ClosedRange<Double> = 0.0...1.0
+
+    /// Valid range for scroll speed multiplier
+    public static let scrollSpeedRange: ClosedRange<Double> = 0.1...5.0
+
+    /// Valid range for microphone sensitivity (dB)
+    public static let micSensitivityRange: ClosedRange<Float> = -50...(-10)
+
     // MARK: - Appearance
 
     /// Font size for the prompter text (points)
-    public var fontSize: CGFloat
+    public var fontSize: CGFloat {
+        didSet { fontSize = Self.clamp(fontSize, to: Self.fontSizeRange) }
+    }
 
     /// Text color as hex string (e.g., "#FFFFFF")
     public var textColor: String
@@ -39,17 +55,29 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var backgroundColor: String
 
     /// Background opacity (0.0 to 1.0)
-    public var backgroundOpacity: Double
+    public var backgroundOpacity: Double {
+        didSet { backgroundOpacity = Self.clamp(backgroundOpacity, to: Self.opacityRange) }
+    }
 
     // MARK: - Scrolling
 
     /// Base scroll speed multiplier (1.0 = normal)
-    public var scrollSpeed: Double
+    public var scrollSpeed: Double {
+        didSet { scrollSpeed = Self.clamp(scrollSpeed, to: Self.scrollSpeedRange) }
+    }
 
     // MARK: - Audio
 
     /// Microphone sensitivity threshold in decibels (typically -50 to -10)
-    public var micSensitivity: Float
+    public var micSensitivity: Float {
+        didSet { micSensitivity = Self.clamp(micSensitivity, to: Self.micSensitivityRange) }
+    }
+
+    // MARK: - Clamping Helper
+
+    private static func clamp<T: Comparable>(_ value: T, to range: ClosedRange<T>) -> T {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
 
     // MARK: - Behavior
 
@@ -114,12 +142,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         floatingWindowWidth: Double? = nil,
         floatingWindowHeight: Double? = nil
     ) {
-        self.fontSize = fontSize
+        // Clamp values to valid ranges during initialization
+        self.fontSize = Self.clamp(fontSize, to: Self.fontSizeRange)
         self.textColor = textColor
         self.backgroundColor = backgroundColor
-        self.backgroundOpacity = backgroundOpacity
-        self.scrollSpeed = scrollSpeed
-        self.micSensitivity = micSensitivity
+        self.backgroundOpacity = Self.clamp(backgroundOpacity, to: Self.opacityRange)
+        self.scrollSpeed = Self.clamp(scrollSpeed, to: Self.scrollSpeedRange)
+        self.micSensitivity = Self.clamp(micSensitivity, to: Self.micSensitivityRange)
         self.countdownSeconds = countdownSeconds
         self.preferredMode = preferredMode
         self.showSpeedIndicator = showSpeedIndicator
@@ -135,13 +164,23 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
 extension AppSettings {
     /// Converts hex color string to SwiftUI Color
+    /// Returns white for invalid/unparseable input
     public static func color(from hex: String) -> Color {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+
+        // Validate hex string contains only valid hex characters
+        guard !sanitized.isEmpty,
+              sanitized.allSatisfy({ $0.isHexDigit }) else {
+            return .white
+        }
+
         var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
+        guard Scanner(string: sanitized).scanHexInt64(&int) else {
+            return .white
+        }
 
         let r, g, b: Double
-        switch hex.count {
+        switch sanitized.count {
         case 6:
             r = Double((int >> 16) & 0xFF) / 255.0
             g = Double((int >> 8) & 0xFF) / 255.0
@@ -150,10 +189,13 @@ extension AppSettings {
             r = Double((int >> 24) & 0xFF) / 255.0
             g = Double((int >> 16) & 0xFF) / 255.0
             b = Double((int >> 8) & 0xFF) / 255.0
+        case 3:
+            // Support shorthand hex (#RGB -> #RRGGBB)
+            r = Double((int >> 8) & 0xF) / 15.0
+            g = Double((int >> 4) & 0xF) / 15.0
+            b = Double(int & 0xF) / 15.0
         default:
-            r = 1.0
-            g = 1.0
-            b = 1.0
+            return .white
         }
 
         return Color(red: r, green: g, blue: b)

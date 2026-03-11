@@ -8,14 +8,18 @@ import Combine
 public final class SettingsManager {
     private static let settingsKey = "com.promptly.settings"
 
+    /// Debounce interval for save operations (prevents excessive disk writes)
+    private static let saveDebounceInterval: TimeInterval = 0.5
+
     /// The current application settings
     public var settings: AppSettings {
         didSet {
-            saveSettings()
+            debouncedSave()
         }
     }
 
     private let userDefaults: UserDefaults
+    private var saveTask: Task<Void, Never>?
 
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -38,7 +42,16 @@ public final class SettingsManager {
         }
     }
 
-    private func saveSettings() {
+    private func debouncedSave() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.saveDebounceInterval))
+            guard !Task.isCancelled else { return }
+            self?.saveSettingsImmediately()
+        }
+    }
+
+    private func saveSettingsImmediately() {
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(settings)
@@ -46,6 +59,12 @@ public final class SettingsManager {
         } catch {
             print("Failed to encode settings: \(error)")
         }
+    }
+
+    /// Forces an immediate save of settings (useful before app termination)
+    public func saveImmediately() {
+        saveTask?.cancel()
+        saveSettingsImmediately()
     }
 
     /// Resets all settings to defaults
@@ -151,7 +170,10 @@ extension SettingsManager {
     /// Creates a settings manager with an ephemeral UserDefaults for testing
     public static func forTesting() -> SettingsManager {
         let suiteName = "com.promptly.test-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            // Fallback to standard UserDefaults if suite creation fails
+            return SettingsManager(userDefaults: .standard)
+        }
         return SettingsManager(userDefaults: defaults)
     }
 }

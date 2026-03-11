@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import AppKit
 
 /// Sorting options for the script list
-enum ScriptSortOption: String, CaseIterable {
+internal enum ScriptSortOption: String, CaseIterable {
     case dateModified = "Date Modified"
     case dateCreated = "Date Created"
     case name = "Name"
@@ -24,6 +24,8 @@ public struct EditorView: View {
     @State private var sortOption: ScriptSortOption = .dateModified
     @State private var sortAscending = false
     @State private var selectedScriptID: UUID?
+    @State private var editorContent: String = ""
+    @State private var lastEditedScriptID: UUID?
 
     public init(scriptStore: ScriptStore, prompterViewModel: PrompterViewModel) {
         self.scriptStore = scriptStore
@@ -104,12 +106,19 @@ public struct EditorView: View {
             }
         }
         .onAppear {
-            selectedScriptID = scriptStore.currentScript?.id
+            syncEditorContent()
         }
         .onChange(of: scriptStore.currentScript?.id) { _, newID in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedScriptID = newID
-            }
+            syncEditorContent()
+        }
+    }
+
+    /// Syncs the local editor content with the current script
+    private func syncEditorContent() {
+        let currentID = scriptStore.currentScript?.id
+        if lastEditedScriptID != currentID {
+            editorContent = scriptStore.currentScript?.content ?? ""
+            lastEditedScriptID = currentID
         }
     }
 
@@ -395,16 +404,19 @@ public struct EditorView: View {
 
                 Divider()
 
-                // Text editor
-                TextEditor(text: Binding(
-                    get: { script.content },
-                    set: { newContent in
-                        scriptStore.updateContent(of: script, to: newContent)
+                // Text editor with stable @State binding to prevent cursor reset
+                TextEditor(text: $editorContent)
+                    .font(.system(size: 16))
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onChange(of: editorContent) { _, newContent in
+                        // Sync changes back to the store
+                        if lastEditedScriptID == script.id {
+                            scriptStore.updateContent(of: script, to: newContent)
+                        }
                     }
-                ))
-                .font(.system(size: 16))
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Script editor")
+                    .accessibilityHint("Edit your script text here")
             }
         } else {
             emptyState

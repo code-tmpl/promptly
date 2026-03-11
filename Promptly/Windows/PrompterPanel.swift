@@ -16,6 +16,9 @@ public final class PrompterPanel: NSPanel {
     private var isInNotchMode: Bool
     private var resizeHandleViews: [ResizeHandleView] = []
 
+    /// Type-erased hosting view for content updates
+    private var hostingView: NSHostingView<AnyView>?
+
     // Minimum size constraints for floating mode
     private let minWindowWidth: CGFloat = 300
     private let minWindowHeight: CGFloat = 80
@@ -220,14 +223,15 @@ public final class PrompterPanel: NSPanel {
             .inVisibleRect
         ]
 
-        trackingArea = NSTrackingArea(
+        let newTrackingArea = NSTrackingArea(
             rect: .zero,
             options: options,
             owner: self,
             userInfo: nil
         )
 
-        contentView?.addTrackingArea(trackingArea!)
+        trackingArea = newTrackingArea
+        contentView?.addTrackingArea(newTrackingArea)
     }
 
     public override func mouseEntered(with event: NSEvent) {
@@ -275,10 +279,13 @@ public final class PrompterPanel: NSPanel {
 extension PrompterPanel {
     /// Sets up the panel with a SwiftUI view as content
     public func setContent<Content: View>(_ view: Content) {
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        // Wrap in AnyView for type-erased storage
+        let anyView = AnyView(view)
+        let newHostingView = NSHostingView(rootView: anyView)
+        newHostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        contentView = hostingView
+        hostingView = newHostingView
+        contentView = newHostingView
 
         // Re-setup resize handles after setting content
         if !isInNotchMode {
@@ -288,11 +295,13 @@ extension PrompterPanel {
         }
     }
 
-    /// Updates the SwiftUI content
+    /// Updates the SwiftUI content without recreating the hosting view
     public func updateContent<Content: View>(_ view: Content) {
-        if let hostingView = contentView as? NSHostingView<Content> {
-            hostingView.rootView = view
+        if let hostingView = hostingView {
+            // Update the rootView directly using the stored type-erased reference
+            hostingView.rootView = AnyView(view)
         } else {
+            // Fallback: create new hosting view if none exists
             setContent(view)
         }
     }
@@ -309,7 +318,7 @@ extension NSWindow.Level {
 
 // MARK: - Resize Direction
 
-enum ResizeDirection {
+internal enum ResizeDirection {
     case topLeft, topRight, bottomLeft, bottomRight
     case left, right, top, bottom
 
@@ -329,7 +338,7 @@ enum ResizeDirection {
 
 // MARK: - Resize Handle View
 
-class ResizeHandleView: NSView {
+internal final class ResizeHandleView: NSView {
     let direction: ResizeDirection
     var onResize: ((NSPoint) -> Void)?
     private var lastMouseLocation: NSPoint?

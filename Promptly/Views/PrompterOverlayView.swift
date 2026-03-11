@@ -1,5 +1,33 @@
 import SwiftUI
 
+/// A line of script text with a stable identifier
+private struct ScriptLine: Identifiable {
+    let id: String
+    let index: Int
+    let content: String
+
+    init(index: Int, content: String) {
+        // Use content hash for stability, with index fallback for duplicate lines
+        self.id = "\(index)_\(content.hashValue)"
+        self.index = index
+        self.content = content
+    }
+}
+
+// MARK: - Layout Constants
+
+private enum OverlayLayout {
+    static let lineHeightMultiplier: CGFloat = 1.5
+    static let lineSpacingMultiplier: CGFloat = 0.3
+    static let topPaddingRatio: CGFloat = 0.4
+    static let bottomPaddingRatio: CGFloat = 0.6
+    static let topGradientRatio: CGFloat = 0.2
+    static let bottomGradientRatio: CGFloat = 0.25
+    static let readingLinePosition: CGFloat = 0.4
+    static let maxDimRatio: CGFloat = 0.6
+    static let horizontalPadding: CGFloat = 24
+}
+
 /// SwiftUI view for the scrolling prompter text overlay
 public struct PrompterOverlayView: View {
     let script: Script
@@ -11,6 +39,13 @@ public struct PrompterOverlayView: View {
     @State private var isMirrored: Bool = false
     @State private var showSpeedChangeIndicator: Bool = false
     @State private var lastSpeed: Double = 1.0
+
+    /// Memoized script lines - computed once per content change
+    private var scriptLines: [ScriptLine] {
+        script.content.components(separatedBy: .newlines)
+            .enumerated()
+            .map { ScriptLine(index: $0.offset, content: $0.element) }
+    }
 
     public init(
         script: Script,
@@ -53,7 +88,7 @@ public struct PrompterOverlayView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: geometry.size.height * 0.2)
+                        .frame(height: geometry.size.height * OverlayLayout.topGradientRatio)
 
                         Spacer()
 
@@ -67,7 +102,7 @@ public struct PrompterOverlayView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: geometry.size.height * 0.25)
+                        .frame(height: geometry.size.height * OverlayLayout.bottomGradientRatio)
                     }
                     .allowsHitTesting(false)
                 }
@@ -227,12 +262,12 @@ public struct PrompterOverlayView: View {
     // MARK: - Scrolling Text
 
     private func scrollingTextView(in geometry: GeometryProxy) -> some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .center, spacing: 0) {
                     // Top padding for initial positioning
                     Color.clear
-                        .frame(height: geometry.size.height * 0.4)
+                        .frame(height: geometry.size.height * OverlayLayout.topPaddingRatio)
                         .id("top")
 
                     // Script content with line-by-line rendering for highlighting
@@ -253,7 +288,7 @@ public struct PrompterOverlayView: View {
 
                     // Bottom padding
                     Color.clear
-                        .frame(height: geometry.size.height * 0.6)
+                        .frame(height: geometry.size.height * OverlayLayout.bottomPaddingRatio)
                         .id("bottom")
                 }
             }
@@ -263,37 +298,49 @@ public struct PrompterOverlayView: View {
     }
 
     private func scriptContentView(in geometry: GeometryProxy) -> some View {
-        let lines = script.content.components(separatedBy: .newlines)
-        let lineHeight = settings.fontSize * 1.5
+        let lineHeight = settings.fontSize * OverlayLayout.lineHeightMultiplier
+        let cachedColor = settings.textSwiftUIColor // Cache to avoid repeated hex parsing
 
-        return VStack(alignment: .center, spacing: settings.fontSize * 0.3) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                Text(line.isEmpty ? " " : line)
+        return VStack(alignment: .center, spacing: settings.fontSize * OverlayLayout.lineSpacingMultiplier) {
+            ForEach(scriptLines) { line in
+                Text(line.content.isEmpty ? " " : line.content)
                     .font(.system(size: settings.fontSize, weight: .medium))
-                    .foregroundStyle(lineColor(for: index, lineHeight: lineHeight, viewportHeight: geometry.size.height))
+                    .foregroundStyle(
+                        lineColor(
+                            for: line.index,
+                            lineHeight: lineHeight,
+                            viewportHeight: geometry.size.height,
+                            baseColor: cachedColor
+                        )
+                    )
                     .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 24)
-                    .id("line_\(index)")
+                    .padding(.horizontal, OverlayLayout.horizontalPadding)
             }
         }
     }
 
-    private func lineColor(for lineIndex: Int, lineHeight: CGFloat, viewportHeight: CGFloat) -> Color {
+    private func lineColor(
+        for lineIndex: Int,
+        lineHeight: CGFloat,
+        viewportHeight: CGFloat,
+        baseColor: Color
+    ) -> Color {
         // Calculate the position of this line relative to the viewport center
-        let lineY = CGFloat(lineIndex) * lineHeight * 1.3  // Account for line spacing
+        let lineSpacingFactor = 1.0 + OverlayLayout.lineSpacingMultiplier
+        let lineY = CGFloat(lineIndex) * lineHeight * lineSpacingFactor
         let scrolledLineY = lineY - state.scrollOffset
-        let viewportCenter = viewportHeight * 0.4  // Where the "reading line" is
+        let viewportCenter = viewportHeight * OverlayLayout.readingLinePosition
 
         // Distance from center (normalized)
         let distanceFromCenter = abs(scrolledLineY - viewportCenter)
         let maxDistance = viewportHeight * 0.5
 
         // Lines near center are brighter
-        let brightness = 1.0 - min(distanceFromCenter / maxDistance, 0.6)
+        let brightness = 1.0 - min(distanceFromCenter / maxDistance, OverlayLayout.maxDimRatio)
 
-        return settings.textSwiftUIColor.opacity(0.4 + brightness * 0.6)
+        return baseColor.opacity(0.4 + brightness * 0.6)
     }
 
     // MARK: - Overlay Indicators
