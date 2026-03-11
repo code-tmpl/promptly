@@ -242,7 +242,8 @@ public struct EditorView: View {
                         scriptRow(script)
                             .tag(script.id)
                     }
-                    .onMove(perform: moveScripts)
+                    // No .onMove — drag-to-reorder is incompatible with sort options
+                    // and the previous implementation was a no-op that faked the interaction
                 }
                 .listStyle(.sidebar)
             }
@@ -378,10 +379,7 @@ public struct EditorView: View {
         )
     }
 
-    private func moveScripts(from source: IndexSet, to destination: Int) {
-        // Note: This is for visual feedback; the actual order is determined by sort option
-        // In a future version, we could add a "manual" sort option that respects drag order
-    }
+    // Drag-to-reorder removed — incompatible with sort options and was previously a no-op
 
     // MARK: - Editor
 

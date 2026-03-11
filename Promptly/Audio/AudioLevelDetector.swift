@@ -34,6 +34,9 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
     private var silenceTimer: Timer?
     private var speechTimer: Timer?
 
+    /// Preferred audio input device unique ID (nil = system default)
+    public var preferredDeviceID: String?
+
     // MARK: - Async Streams
 
     private var speakingContinuation: AsyncStream<Bool>.Continuation?
@@ -88,7 +91,10 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             stop()
 
             // Attempt to restart after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            // Use Task { @MainActor } — DispatchQueue.main closures are NOT
+            // recognized as @MainActor-isolated in Swift 6 strict concurrency
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
                 guard let self, self.isInterrupted else { return }
                 do {
                     try self.start()
@@ -99,6 +105,74 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
                 }
             }
         }
+    }
+
+    // MARK: - Audio Device Selection
+
+    /// Sets the audio engine's input device by unique ID
+    private func setInputDevice(uniqueID: String) {
+        #if os(macOS)
+        // Find the CoreAudio device ID matching the uniqueID
+        guard let device = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external],
+            mediaType: .audio,
+            position: .unspecified
+        ).devices.first(where: { $0.uniqueID == uniqueID }) else {
+            print("Audio device not found: \(uniqueID)")
+            return
+        }
+
+        // Get the AudioDeviceID from the transport type + uniqueID
+        var deviceID: AudioDeviceID = 0
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var size: UInt32 = 0
+        AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size)
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var deviceIDs = [AudioDeviceID](repeating: 0, count: count)
+        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceIDs)
+
+        // Find the device matching the uniqueID
+        for id in deviceIDs {
+            var nameAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyDeviceUID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var uid: CFString = "" as CFString
+            var uidSize = UInt32(MemoryLayout<CFString>.size)
+            let status = AudioObjectGetPropertyData(id, &nameAddress, 0, nil, &uidSize, &uid)
+            if status == noErr, uid as String == uniqueID {
+                deviceID = id
+                break
+            }
+        }
+
+        guard deviceID != 0 else {
+            print("Could not find CoreAudio device for: \(uniqueID)")
+            return
+        }
+
+        // Set the input device on the audio engine's input node
+        let inputNode = audioEngine.inputNode
+        let audioUnit = inputNode.audioUnit!
+        var mutableDeviceID = deviceID
+        let setStatus = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &mutableDeviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        if setStatus != noErr {
+            print("Failed to set audio input device: \(setStatus)")
+        }
+        #endif
     }
 
     // MARK: - Public API
@@ -126,6 +200,11 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             throw AudioError.noInputDevice
         @unknown default:
             throw AudioError.noInputDevice
+        }
+
+        // Set preferred audio device if specified
+        if let deviceID = preferredDeviceID {
+            setInputDevice(uniqueID: deviceID)
         }
 
         let inputNode = audioEngine.inputNode

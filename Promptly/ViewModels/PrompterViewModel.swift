@@ -306,8 +306,9 @@ public final class PrompterViewModel {
         state.isActive = true
         onActiveStateChanged?(true)
 
-        // Update audio threshold from settings
+        // Update audio threshold and preferred device from settings
         audioDetector.updateThreshold(settingsManager.micSensitivity)
+        audioDetector.preferredDeviceID = settingsManager.settings.preferredAudioDeviceID
 
         // Start audio detection
         do {

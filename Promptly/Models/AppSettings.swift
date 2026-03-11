@@ -93,6 +93,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Whether to show the progress indicator in the prompter
     public var showProgressIndicator: Bool
 
+    // MARK: - Audio Device
+
+    /// Preferred audio input device unique ID (nil = system default)
+    public var preferredAudioDeviceID: String?
+
     // MARK: - Window Position (for floating mode)
 
     /// Last known floating window X position
