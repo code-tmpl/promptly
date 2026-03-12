@@ -406,10 +406,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Import/Export
 
-    /// Imports a script from a text file
+    /// Imports a script from a text file (.txt, .md, .rtf)
     func importScript() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.plainText, .text]
+        panel.allowedContentTypes = TextImporter.supportedTypes
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canCreateDirectories = false
@@ -421,9 +421,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             Task { @MainActor [weak self] in
                 do {
-                    let content = try String(contentsOf: url, encoding: .utf8)
-                    let title = url.deletingPathExtension().lastPathComponent
-                    self?.scriptStore.createScript(title: title, content: content)
+                    let result = try TextImporter.extractText(from: url)
+                    self?.scriptStore.createScript(title: result.title, content: result.content)
                 } catch {
                     let alert = NSAlert()
                     alert.messageText = "Import Failed"

@@ -23,6 +23,7 @@
 		5D00F3A0D280E12A53829D94 /* PrompterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3405341BC8E28E3595162C06 /* PrompterWindowController.swift */; };
 		6016F249C74B3CEC1C3314CE /* KeyboardShortcutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BD0EEBCD8583F91203DD55 /* KeyboardShortcutManager.swift */; };
 		643BB9A15CF95783A1201F3F /* VoiceScrollController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC78C95FE3E114216A136946 /* VoiceScrollController.swift */; };
+		71B2BA2F81D32D5747B86A61 /* TextImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907BE8D3AE0FD266C17DC387 /* TextImporter.swift */; };
 		8063F9E094352C121D924A83 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76878D8CF7F6DE21A1DEFA57 /* AppSettings.swift */; };
 		875CF1057A3A31AC61E053EE /* PrompterViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D263C368401B3CBAD0060492 /* PrompterViewModelTests.swift */; };
 		87A015B6857B7CB04B9DB667 /* PromptlyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53FF581C9FD59FA25E38D16 /* PromptlyApp.swift */; };
@@ -30,6 +31,7 @@
 		8C508871E0469E89FDBE98A5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5BEF90431588EE38F6D1C0 /* SettingsView.swift */; };
 		ABAF0B408564082CEE1DCAF1 /* VoiceScrollControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D1D9FAA40FF55886369BB7 /* VoiceScrollControllerTests.swift */; };
 		B6B280E83424AE66DBE467CF /* LifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AD71629F8E6092BEADEBD3D /* LifecycleTests.swift */; };
+		CE6E257DAB35E683A42FC820 /* TextImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB7D26A79127E1E83E845F48 /* TextImporterTests.swift */; };
 		D348F894D211AAACAF7E43D7 /* PrompterPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBC856E475381EB0395F21E /* PrompterPanel.swift */; };
 		D7C439C7186E961BDE179391 /* AudioLevelDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DB0FC33F9A56AB89CA90A5 /* AudioLevelDetector.swift */; };
 		D94F365E1BDF337E1F566C18 /* AudioLevelDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D68A59E35C2BC69B20CBF0 /* AudioLevelDetectorTests.swift */; };
@@ -65,6 +67,7 @@
 		7AD71629F8E6092BEADEBD3D /* LifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleTests.swift; sourceTree = "<group>"; };
 		80E6A721F7D15DBDE07C5409 /* PrompterOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrompterOverlayView.swift; sourceTree = "<group>"; };
 		83475ABAA22DB35D427EE392 /* NotchPositionCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPositionCalculatorTests.swift; sourceTree = "<group>"; };
+		907BE8D3AE0FD266C17DC387 /* TextImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextImporter.swift; sourceTree = "<group>"; };
 		96631C26E918AF8711135833 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AA14A09DC10C4C6DD41FF4A4 /* Promptly.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Promptly.entitlements; sourceTree = "<group>"; };
 		B4BD0EEBCD8583F91203DD55 /* KeyboardShortcutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutManager.swift; sourceTree = "<group>"; };
@@ -72,6 +75,7 @@
 		C5B127FF025C9804252961D0 /* PrompterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrompterViewModel.swift; sourceTree = "<group>"; };
 		D263C368401B3CBAD0060492 /* PrompterViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrompterViewModelTests.swift; sourceTree = "<group>"; };
 		D887C24EB65413393194A76C /* Promptly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Promptly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB7D26A79127E1E83E845F48 /* TextImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextImporterTests.swift; sourceTree = "<group>"; };
 		DC78C95FE3E114216A136946 /* VoiceScrollController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceScrollController.swift; sourceTree = "<group>"; };
 		E10B9B9BA5D2FD9875659366 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		E130693F5EB0CD73247E1A2D /* PrompterPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrompterPanelTests.swift; sourceTree = "<group>"; };
@@ -95,6 +99,7 @@
 			isa = PBXGroup;
 			children = (
 				B4BD0EEBCD8583F91203DD55 /* KeyboardShortcutManager.swift */,
+				907BE8D3AE0FD266C17DC387 /* TextImporter.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -129,6 +134,7 @@
 				65F0CBFC6CADA1B733C7B375 /* ScriptModelTests.swift */,
 				525DB129D975A614B97AA8A1 /* ScriptStoreTests.swift */,
 				4259FC990E7F9921EA09C512 /* SettingsManagerTests.swift */,
+				DB7D26A79127E1E83E845F48 /* TextImporterTests.swift */,
 				C0D1D9FAA40FF55886369BB7 /* VoiceScrollControllerTests.swift */,
 			);
 			path = PromptlyTests;
@@ -301,6 +307,7 @@
 				16269496D21062962A5F3308 /* ScriptModelTests.swift in Sources */,
 				2BC33052139E9F258E7A9C4B /* ScriptStoreTests.swift in Sources */,
 				3CBC5FA46186202879EB0003 /* SettingsManagerTests.swift in Sources */,
+				CE6E257DAB35E683A42FC820 /* TextImporterTests.swift in Sources */,
 				ABAF0B408564082CEE1DCAF1 /* VoiceScrollControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -324,6 +331,7 @@
 				0C237B4D8F6044F63907C119 /* ScriptStore.swift in Sources */,
 				25E3A530C46528DBEDCC866E /* SettingsManager.swift in Sources */,
 				8C508871E0469E89FDBE98A5 /* SettingsView.swift in Sources */,
+				71B2BA2F81D32D5747B86A61 /* TextImporter.swift in Sources */,
 				643BB9A15CF95783A1201F3F /* VoiceScrollController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
