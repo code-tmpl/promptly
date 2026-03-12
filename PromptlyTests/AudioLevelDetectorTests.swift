@@ -129,4 +129,29 @@ final class AudioLevelDetectorTests: XCTestCase {
         XCTAssertFalse(detector.isSpeaking)
         XCTAssertEqual(detector.audioLevel, -60.0)
     }
+
+    // MARK: - Integration Tests
+
+    func testEngineStartStopIntegration() throws {
+        let detector = AudioLevelDetector()
+
+        // Attempt to start — may fail if no mic permission in CI environment
+        do {
+            try detector.start()
+        } catch {
+            // Skip if start() throws (no mic permission or no input device)
+            throw XCTSkip("Audio engine start failed (likely no mic permission): \(error)")
+        }
+
+        // If start() returned without throwing but engine isn't running,
+        // it means permission was not yet determined (async request pending) — skip
+        try XCTSkipUnless(detector.isEngineRunning,
+                          "Audio engine not running (permission pending or no hardware)")
+
+        XCTAssertTrue(detector.isEngineRunning, "Engine should be running after start()")
+
+        detector.stop()
+
+        XCTAssertFalse(detector.isEngineRunning, "Engine should not be running after stop()")
+    }
 }

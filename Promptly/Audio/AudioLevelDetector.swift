@@ -413,4 +413,9 @@ extension AudioLevelDetector {
     public var currentThreshold: Float {
         threshold
     }
+
+    /// Returns whether the audio engine is currently running
+    public var isEngineRunning: Bool {
+        audioEngine.isRunning
+    }
 }
