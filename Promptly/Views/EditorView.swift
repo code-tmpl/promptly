@@ -26,6 +26,9 @@ public struct EditorView: View {
     @State private var selectedScriptID: UUID?
     @State private var editorContent: String = ""
     @State private var lastEditedScriptID: UUID?
+    @State private var isTargetedForDrop = false
+    @State private var dropErrorMessage: String?
+    @State private var showDropError = false
 
     public init(scriptStore: ScriptStore, prompterViewModel: PrompterViewModel) {
         self.scriptStore = scriptStore
@@ -110,6 +113,28 @@ public struct EditorView: View {
         }
         .onChange(of: scriptStore.currentScript?.id) { _, newID in
             syncEditorContent()
+        }
+        // Drag-and-drop file import
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            return handleFileDrop(url: url)
+        } isTargeted: { isTargeted in
+            isTargetedForDrop = isTargeted
+        }
+        .overlay {
+            if isTargetedForDrop {
+                dropOverlay
+            }
+        }
+        // Drop error alert
+        .alert("Import Failed", isPresented: $showDropError) {
+            Button("OK", role: .cancel) {
+                dropErrorMessage = nil
+            }
+        } message: {
+            if let message = dropErrorMessage {
+                Text(message)
+            }
         }
     }
 
@@ -527,6 +552,50 @@ public struct EditorView: View {
     private func openMicrophoneSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: - Drag and Drop
+
+    private var dropOverlay: some View {
+        ZStack {
+            Color.accentColor.opacity(0.1)
+
+            VStack(spacing: 12) {
+                Image(systemName: "doc.badge.plus")
+                    .font(.system(size: 48))
+                    .foregroundStyle(Color.accentColor)
+
+                Text("Drop to Import Script")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text("Supports .txt, .md, and .rtf files")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .shadow(radius: 8)
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func handleFileDrop(url: URL) -> Bool {
+        do {
+            let result = try TextImporter.extractText(from: url)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                scriptStore.createScript(title: result.title, content: result.content)
+                selectedScriptID = scriptStore.currentScript?.id
+            }
+            return true
+        } catch {
+            dropErrorMessage = error.localizedDescription
+            showDropError = true
+            return false
         }
     }
 }
