@@ -132,7 +132,7 @@ final class LifecycleTests: XCTestCase {
         // BUG #2 regression: cleanup() was async fire-and-forget
         let controller = VoiceScrollController()
 
-        controller.simulateSpeaking(true)
+        controller.start()  // start() now begins scrolling
         XCTAssertTrue(controller.isScrolling)
 
         controller.cleanup()
@@ -229,6 +229,49 @@ final class LifecycleTests: XCTestCase {
         )
     }
 
+    func testSpeedShortcutsWithNumericPadFlag() {
+        // BUG-005 regression: Arrow keys include .numericPad modifier flag
+        // which caused exact equality check (modifiers == .command) to fail.
+        // Fix uses contains(.command) instead.
+        let manager = KeyboardShortcutManager()
+
+        // Cmd+Up with just command modifier
+        XCTAssertEqual(
+            manager.matchShortcutForTesting(keyCode: 0x7E, modifiers: .command),
+            .speedUp,
+            "Cmd+Up should match speedUp"
+        )
+
+        // Cmd+Down with just command modifier
+        XCTAssertEqual(
+            manager.matchShortcutForTesting(keyCode: 0x7D, modifiers: .command),
+            .speedDown,
+            "Cmd+Down should match speedDown"
+        )
+
+        // Arrow keys often include .numericPad flag — must still work
+        let commandWithNumericPad = NSEvent.ModifierFlags([.command, .numericPad])
+
+        XCTAssertEqual(
+            manager.matchShortcutForTesting(keyCode: 0x7E, modifiers: commandWithNumericPad),
+            .speedUp,
+            "Cmd+Up with numericPad flag should still match speedUp"
+        )
+
+        XCTAssertEqual(
+            manager.matchShortcutForTesting(keyCode: 0x7D, modifiers: commandWithNumericPad),
+            .speedDown,
+            "Cmd+Down with numericPad flag should still match speedDown"
+        )
+
+        // But Cmd+Shift+Up should NOT match (other modifiers present)
+        let commandShift = NSEvent.ModifierFlags([.command, .shift])
+        XCTAssertNil(
+            manager.matchShortcutForTesting(keyCode: 0x7E, modifiers: commandShift),
+            "Cmd+Shift+Up should not match speedUp"
+        )
+    }
+
     // MARK: - Force Unwrap Prevention Tests
 
     func testAudioDeviceSelectionHandlesMissingDevice() {
@@ -281,7 +324,7 @@ final class LifecycleTests: XCTestCase {
 
         // Start scrolling — this calls setupDisplayLink() which creates
         // the CVDisplayLink + dispatch source with passRetained
-        controller.simulateSpeaking(true)
+        controller.start()  // start() now begins scrolling
         XCTAssertTrue(controller.isScrolling)
 
         // Stop scrolling — this calls teardownDisplayLink() which must:
@@ -290,7 +333,7 @@ final class LifecycleTests: XCTestCase {
         // 3. Release the retained source
         // 4. Cancel source
         // If passUnretained were used, this would crash with EXC_BAD_ACCESS
-        controller.simulateSpeaking(false)
+        controller.stop()
         XCTAssertFalse(controller.isScrolling)
     }
 
@@ -301,8 +344,8 @@ final class LifecycleTests: XCTestCase {
         let controller = VoiceScrollController()
 
         for _ in 0..<20 {
-            controller.simulateSpeaking(true)
-            controller.simulateSpeaking(false)
+            controller.start()
+            controller.stop()
         }
 
         XCTAssertFalse(controller.isScrolling)

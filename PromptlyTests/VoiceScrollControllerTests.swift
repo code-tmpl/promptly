@@ -78,28 +78,48 @@ final class VoiceScrollControllerTests: XCTestCase {
         XCTAssertEqual(controller.scrollOffset, 0)
     }
 
-    func testSimulateSpeakingStartsScrolling() {
+    func testStartBeginsScrolling() {
         let controller = VoiceScrollController()
 
-        controller.simulateSpeaking(true)
+        controller.start()
 
-        XCTAssertTrue(controller.isScrolling)
+        XCTAssertTrue(controller.isScrolling,
+                      "start() should begin scrolling immediately")
     }
 
-    func testSimulateSpeakingStopsScrolling() {
+    func testStopEndsScrolling() {
         let controller = VoiceScrollController()
 
-        controller.simulateSpeaking(true)
+        controller.start()
         XCTAssertTrue(controller.isScrolling)
 
+        controller.stop()
+        XCTAssertFalse(controller.isScrolling,
+                       "stop() should end scrolling")
+    }
+
+    func testVoiceModulatesSpeedNotScrollState() {
+        let controller = VoiceScrollController()
+
+        // Start scrolling first
+        controller.start()
+        XCTAssertTrue(controller.isScrolling)
+
+        // Simulate speaking - should NOT change isScrolling, just modulate speed
+        controller.simulateSpeaking(true)
+        XCTAssertTrue(controller.isScrolling,
+                      "Speaking should not change scroll state")
+
+        // Simulate silence - scrolling should continue (voice modulates speed, not start/stop)
         controller.simulateSpeaking(false)
-        XCTAssertFalse(controller.isScrolling)
+        XCTAssertTrue(controller.isScrolling,
+                      "Silence should not stop scrolling (voice modulates speed)")
     }
 
     func testPausePreventsScrolling() {
         let controller = VoiceScrollController()
 
-        controller.simulateSpeaking(true)
+        controller.start()
         XCTAssertTrue(controller.isScrolling)
 
         controller.isPaused = true
@@ -147,7 +167,7 @@ final class VoiceScrollControllerTests: XCTestCase {
     func testStopClearsCancellables() {
         let controller = VoiceScrollController()
 
-        controller.simulateSpeaking(true)
+        controller.start()
         controller.stop()
 
         XCTAssertFalse(controller.isScrolling)
@@ -172,11 +192,10 @@ final class VoiceScrollControllerTests: XCTestCase {
         let controller = VoiceScrollController()
         controller.baseScrollRate = 100  // Use higher rate for visible movement
 
-        // Start speaking — this triggers startScrolling() which sets up
-        // CVDisplayLink or fallback Timer for 60fps scroll updates
-        controller.simulateSpeaking(true)
+        // start() triggers scrolling immediately (no need for simulateSpeaking)
+        controller.start()
 
-        XCTAssertTrue(controller.isScrolling, "Should be scrolling after simulateSpeaking(true)")
+        XCTAssertTrue(controller.isScrolling, "Should be scrolling after start()")
         XCTAssertEqual(controller.scrollOffset, 0, "Scroll offset should start at 0")
 
         // Wait long enough for at least a few frame callbacks to fire (150ms ~ 9 frames at 60fps)
@@ -187,7 +206,55 @@ final class VoiceScrollControllerTests: XCTestCase {
                              "Scroll offset should be > 0 after real timer/display link fires")
 
         // Cleanup
+        controller.stop()
+        XCTAssertFalse(controller.isScrolling, "Should stop scrolling after stop()")
+    }
+
+    func testVoiceModulatesScrollSpeed() async throws {
+        let controller = VoiceScrollController()
+        controller.baseScrollRate = 100
+        controller.speakingSpeedMultiplier = 2.0  // 2x speed when speaking
+        controller.silentSpeedMultiplier = 0.5    // 0.5x speed when silent
+        controller.silenceGracePeriod = 0.1       // Short grace period for testing
+
+        // Start scrolling
+        controller.start()
+
+        // Record initial scroll position
+        let initialOffset = controller.scrollOffset
+
+        // Simulate speaking (should use speakingSpeedMultiplier)
+        controller.simulateSpeaking(true)
+
+        // Wait for some scrolling
+        try await Task.sleep(for: .milliseconds(100))
+        let speakingOffset = controller.scrollOffset
+        let speakingDelta = speakingOffset - initialOffset
+
+        XCTAssertGreaterThan(speakingDelta, 0, "Should have scrolled while speaking")
+
+        // Reset and test silent speed
+        controller.reset()
         controller.simulateSpeaking(false)
-        XCTAssertFalse(controller.isScrolling, "Should stop scrolling after simulateSpeaking(false)")
+
+        // Wait for grace period to expire
+        try await Task.sleep(for: .milliseconds(200))
+
+        // Record position after grace period
+        let afterGraceOffset = controller.scrollOffset
+
+        // Wait for more scrolling at silent speed
+        try await Task.sleep(for: .milliseconds(100))
+        let silentOffset = controller.scrollOffset
+        let silentDelta = silentOffset - afterGraceOffset
+
+        XCTAssertGreaterThan(silentDelta, 0, "Should still scroll when silent (just slower)")
+
+        // Silent delta should be significantly less than speaking delta
+        // (accounting for timing variations, we just check it's slower)
+        XCTAssertLessThan(silentDelta, speakingDelta,
+                          "Silent scrolling should be slower than speaking scrolling")
+
+        controller.stop()
     }
 }

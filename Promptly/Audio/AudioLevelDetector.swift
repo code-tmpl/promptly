@@ -456,4 +456,18 @@ extension AudioLevelDetector {
     public var isEngineRunning: Bool {
         audioEngine.isRunning
     }
+
+    /// Creates a tap handler bound to this detector's bridge for regression testing.
+    /// The returned closure can safely be invoked from any thread (including background
+    /// queues simulating Core Audio's realtime thread). This tests the Swift 6
+    /// nonisolated fix — the closure must NOT have @MainActor isolation.
+    ///
+    /// Returns a closure that accepts (AVAudioPCMBuffer, AVAudioTime) and processes
+    /// audio levels. Call this from a background thread to verify no crash occurs.
+    public func createTapHandlerForTesting() -> (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        tapBridge.onLevel = { [weak self] dB in
+            self?.handleAudioLevel(dB)
+        }
+        return Self.makeTapHandler(bridge: tapBridge)
+    }
 }

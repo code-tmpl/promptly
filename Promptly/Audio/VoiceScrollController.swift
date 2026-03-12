@@ -44,6 +44,15 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     /// Base scroll rate in points per second at speed 1.0
     public var baseScrollRate: CGFloat = 50.0
 
+    /// Speed multiplier when speaking (voice modulates scroll speed)
+    public var speakingSpeedMultiplier: Double = 1.5
+
+    /// Speed multiplier when silent (voice modulates scroll speed)
+    public var silentSpeedMultiplier: Double = 0.5
+
+    /// Duration of silence before scroll speed reduces to silent multiplier
+    public var silenceGracePeriod: TimeInterval = 0.5
+
     // MARK: - Private Properties
 
     private var displayLink: CVDisplayLink?
@@ -51,6 +60,12 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     private var isSpeaking: Bool = false
     private var lastFrameTime: CFTimeInterval = 0
     private var cancellables = Set<AnyCancellable>()
+
+    /// Current voice-based speed multiplier (smoothly transitions between speaking/silent)
+    private var voiceSpeedMultiplier: Double = 1.0
+
+    /// Timer for grace period before slowing down after silence
+    private var silenceGraceTimer: Timer?
 
     // Fallback timer for when CVDisplayLink is unavailable
     private var fallbackTimer: Timer?
@@ -83,9 +98,14 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
             .store(in: &cancellables)
     }
 
-    /// Starts the scroll controller (prepares for scrolling)
+    /// Starts the scroll controller and begins scrolling immediately at base speed.
+    /// Voice activity will modulate scroll speed: speaking = faster, silence = slower.
     public func start() {
-        // Ready to scroll, will begin when speaking detected
+        guard !isScrolling else { return }
+
+        // Start at base speed (voice will modulate via voiceSpeedMultiplier)
+        voiceSpeedMultiplier = 1.0
+        startScrolling()
     }
 
     /// Stops the scroll controller completely
@@ -119,10 +139,27 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     private func handleSpeakingChange(_ speaking: Bool) {
         isSpeaking = speaking
 
-        if speaking && !isPaused {
-            startScrolling()
+        // Voice modulates scroll speed rather than starting/stopping scrolling.
+        // Speaking = faster scroll, silence = slower scroll after grace period.
+        if speaking {
+            // Cancel any pending slowdown
+            silenceGraceTimer?.invalidate()
+            silenceGraceTimer = nil
+
+            // Speed up immediately when speaking
+            voiceSpeedMultiplier = speakingSpeedMultiplier
         } else {
-            stopScrolling()
+            // Start grace period timer before slowing down
+            silenceGraceTimer?.invalidate()
+            silenceGraceTimer = Timer.scheduledTimer(
+                withTimeInterval: silenceGracePeriod,
+                repeats: false
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.voiceSpeedMultiplier = self?.silentSpeedMultiplier ?? 0.5
+                    self?.silenceGraceTimer = nil
+                }
+            }
         }
     }
 
@@ -141,6 +178,9 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     private func stopScrolling() {
         guard isScrolling else { return }
         isScrolling = false
+
+        silenceGraceTimer?.invalidate()
+        silenceGraceTimer = nil
 
         teardownDisplayLink()
         teardownFallbackTimer()
@@ -200,14 +240,15 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
 
     @MainActor
     private func displayLinkFired() {
-        guard isScrolling, !isPaused, isSpeaking else { return }
+        guard isScrolling, !isPaused else { return }
 
         let currentTime = CACurrentMediaTime()
         let deltaTime = currentTime - lastFrameTime
         lastFrameTime = currentTime
 
-        // Calculate scroll amount based on speed and delta time
-        let scrollAmount = baseScrollRate * CGFloat(speed) * CGFloat(deltaTime)
+        // Calculate scroll amount based on speed, voice multiplier, and delta time
+        // voiceSpeedMultiplier modulates speed based on speaking/silence state
+        let scrollAmount = baseScrollRate * CGFloat(speed) * CGFloat(voiceSpeedMultiplier) * CGFloat(deltaTime)
         scrollOffset += scrollAmount
     }
 
@@ -232,14 +273,15 @@ public final class VoiceScrollController: ObservableObject, @unchecked Sendable 
     }
 
     private func timerFired() {
-        guard isScrolling, !isPaused, isSpeaking else { return }
+        guard isScrolling, !isPaused else { return }
 
         let currentTime = CACurrentMediaTime()
         let deltaTime = currentTime - lastFrameTime
         lastFrameTime = currentTime
 
-        // Calculate scroll amount based on speed and delta time
-        let scrollAmount = baseScrollRate * CGFloat(speed) * CGFloat(deltaTime)
+        // Calculate scroll amount based on speed, voice multiplier, and delta time
+        // voiceSpeedMultiplier modulates speed based on speaking/silence state
+        let scrollAmount = baseScrollRate * CGFloat(speed) * CGFloat(voiceSpeedMultiplier) * CGFloat(deltaTime)
         scrollOffset += scrollAmount
     }
 }

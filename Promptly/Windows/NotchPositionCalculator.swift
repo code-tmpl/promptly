@@ -2,14 +2,14 @@ import AppKit
 
 /// Calculates window frames for notch-mode positioning
 public struct NotchPositionCalculator: Sendable {
-    /// Default height for the prompter window
-    public static let defaultWindowHeight: CGFloat = 80
+    /// Default height for the prompter window (sized for 3-5 lines at typical font sizes)
+    public static let defaultWindowHeight: CGFloat = 220
 
     /// Minimum height for the prompter window
     public static let minimumWindowHeight: CGFloat = 40
 
     /// Maximum height for the prompter window
-    public static let maximumWindowHeight: CGFloat = 200
+    public static let maximumWindowHeight: CGFloat = 300
 
     /// Default width for floating mode
     public static let defaultFloatingWidth: CGFloat = 600
