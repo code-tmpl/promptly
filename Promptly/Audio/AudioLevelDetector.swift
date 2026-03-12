@@ -2,6 +2,19 @@ import Foundation
 import AVFoundation
 import Combine
 
+/// Non-actor bridge that can be safely captured in the audio tap closure.
+/// Holds a callback that is set on MainActor and invoked from any thread
+/// via DispatchQueue.main.async, avoiding Swift 6 isolation checks.
+private final class AudioTapBridge: @unchecked Sendable {
+    var onLevel: ((Float) -> Void)?
+
+    func send(_ dB: Float) {
+        DispatchQueue.main.async { [self] in
+            self.onLevel?(dB)
+        }
+    }
+}
+
 /// Monitors microphone input for speech detection using audio level thresholds
 @MainActor
 public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
@@ -46,6 +59,12 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
 
     private var speakingContinuation: AsyncStream<Bool>.Continuation?
     private var audioLevelContinuation: AsyncStream<Float>.Continuation?
+
+    // MARK: - Audio Tap Bridge
+
+    /// Bridge object for safely passing audio levels from the realtime thread.
+    /// Not @MainActor, so capturing it in the tap won't trigger isolation checks.
+    private let tapBridge = AudioTapBridge()
 
     // MARK: - Notification Observers
 
@@ -224,39 +243,26 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
             throw AudioError.invalidFormat
         }
 
-        // Install tap on input node
-        // IMPORTANT: This callback runs on Core Audio's realtime thread.
-        // We must NOT access @MainActor state here. Do all RMS math inline,
-        // then send the result to MainActor via Task.
+        // Install tap on input node.
+        // IMPORTANT: The tap callback runs on Core Audio's realtime thread.
+        // Swift 6 infers closures defined inside @MainActor methods as
+        // @MainActor-isolated, inserting a runtime assertion that crashes
+        // when Core Audio invokes the callback off the main thread.
+        // Fix: `makeTapHandler` is `nonisolated static`, so the returned
+        // closure has no actor isolation.  It only captures `bridge`
+        // (a non-actor Sendable type) and bounces levels to MainActor
+        // via DispatchQueue.main.async inside `bridge.send()`.
+        tapBridge.onLevel = { [weak self] dB in
+            self?.handleAudioLevel(dB)
+        }
+        let bridge = tapBridge  // local let — NOT @MainActor typed
+
         inputNode.installTap(
             onBus: 0,
             bufferSize: 1024,
-            format: format
-        ) { [weak self] buffer, _ in
-            // Calculate RMS entirely on the audio thread — no @MainActor access
-            guard let channelData = buffer.floatChannelData else { return }
-            let channelCount = Int(buffer.format.channelCount)
-            let frameLength = Int(buffer.frameLength)
-            guard frameLength > 0, channelCount > 0 else { return }
-
-            var rms: Float = 0
-            for channel in 0..<channelCount {
-                let data = channelData[channel]
-                var sum: Float = 0
-                for frame in 0..<frameLength {
-                    let sample = data[frame]
-                    sum += sample * sample
-                }
-                rms += sum
-            }
-            rms = sqrt(rms / Float(frameLength * channelCount))
-            let dB = 20 * log10(max(rms, 0.000001))
-
-            // Hop to MainActor with just the Float value — no self capture in the tap
-            Task { @MainActor [weak self] in
-                self?.handleAudioLevel(dB)
-            }
-        }
+            format: format,
+            block: Self.makeTapHandler(bridge: bridge)
+        )
 
         // Start the audio engine with proper error handling
         audioEngine.prepare()
@@ -320,6 +326,38 @@ public final class AudioLevelDetector: ObservableObject, @unchecked Sendable {
 
         return AsyncStream { continuation in
             self.audioLevelContinuation = continuation
+        }
+    }
+
+    // MARK: - Audio Tap Handler (nonisolated)
+
+    /// Returns the installTap block.  Defined as `nonisolated static` so the
+    /// closure is **not** inferred as `@MainActor` by Swift 6.  The returned
+    /// closure only captures the non-actor `AudioTapBridge`, which is safe to
+    /// call from Core Audio's realtime thread.
+    nonisolated private static func makeTapHandler(
+        bridge: AudioTapBridge
+    ) -> (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        return { buffer, _ in
+            guard let channelData = buffer.floatChannelData else { return }
+            let channelCount = Int(buffer.format.channelCount)
+            let frameLength = Int(buffer.frameLength)
+            guard frameLength > 0, channelCount > 0 else { return }
+
+            var rms: Float = 0
+            for channel in 0..<channelCount {
+                let data = channelData[channel]
+                var sum: Float = 0
+                for frame in 0..<frameLength {
+                    let sample = data[frame]
+                    sum += sample * sample
+                }
+                rms += sum
+            }
+            rms = sqrt(rms / Float(frameLength * channelCount))
+            let dB = 20 * log10(max(rms, 0.000001))
+
+            bridge.send(dB)
         }
     }
 
