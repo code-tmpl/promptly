@@ -41,22 +41,10 @@ public struct PrompterOverlayView: View {
     @State private var speedDismissTask: Task<Void, Never>?
     @State private var lastSpeed: Double = 1.0
 
-    /// Memoized script lines - computed once per content change
-    // Memoized — recomputing on every SwiftUI render (60fps during scroll)
+    /// Memoized script lines — updated via .onChange, not during body evaluation
+    // Recomputing on every SwiftUI render (60fps during scroll)
     // would split a 3,000-word script hundreds of times per second
-    private var scriptLines: [ScriptLine] {
-        if cachedScriptContent == script.content, let cached = cachedScriptLines {
-            return cached
-        }
-        let lines = script.content.components(separatedBy: .newlines)
-            .enumerated()
-            .map { ScriptLine(index: $0.offset, content: $0.element) }
-        cachedScriptContent = script.content
-        cachedScriptLines = lines
-        return lines
-    }
-    @State private var cachedScriptContent: String?
-    @State private var cachedScriptLines: [ScriptLine]?
+    @State private var scriptLines: [ScriptLine] = []
 
     public init(
         script: Script,
@@ -154,6 +142,10 @@ public struct PrompterOverlayView: View {
             .onAppear {
                 state.visibleContentHeight = geometry.size.height
                 lastSpeed = state.currentSpeed
+                // Initialize script lines on first appearance
+                if scriptLines.isEmpty {
+                    scriptLines = computeScriptLines(from: script.content)
+                }
             }
             .onChange(of: geometry.size.height) { _, newHeight in
                 state.visibleContentHeight = newHeight
@@ -163,7 +155,17 @@ public struct PrompterOverlayView: View {
                     showSpeedFeedback()
                 }
             }
+            .onChange(of: script.content) { _, newContent in
+                scriptLines = computeScriptLines(from: newContent)
+            }
         }
+    }
+
+    /// Compute script lines from content — called once per content change via .onChange
+    private func computeScriptLines(from content: String) -> [ScriptLine] {
+        content.components(separatedBy: .newlines)
+            .enumerated()
+            .map { ScriptLine(index: $0.offset, content: $0.element) }
     }
 
     private func showSpeedFeedback() {
