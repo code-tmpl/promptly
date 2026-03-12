@@ -42,11 +42,21 @@ public struct PrompterOverlayView: View {
     @State private var lastSpeed: Double = 1.0
 
     /// Memoized script lines - computed once per content change
+    // Memoized — recomputing on every SwiftUI render (60fps during scroll)
+    // would split a 3,000-word script hundreds of times per second
     private var scriptLines: [ScriptLine] {
-        script.content.components(separatedBy: .newlines)
+        if cachedScriptContent == script.content, let cached = cachedScriptLines {
+            return cached
+        }
+        let lines = script.content.components(separatedBy: .newlines)
             .enumerated()
             .map { ScriptLine(index: $0.offset, content: $0.element) }
+        cachedScriptContent = script.content
+        cachedScriptLines = lines
+        return lines
     }
+    @State private var cachedScriptContent: String?
+    @State private var cachedScriptLines: [ScriptLine]?
 
     public init(
         script: Script,
