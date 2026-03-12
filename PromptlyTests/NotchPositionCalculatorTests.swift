@@ -5,7 +5,8 @@ import AppKit
 final class NotchPositionCalculatorTests: XCTestCase {
 
     func testDefaultWindowHeight() {
-        XCTAssertEqual(NotchPositionCalculator.defaultWindowHeight, 80)
+        // 220px provides 3-5 lines of text at typical font sizes (was 80px showing only 1 line)
+        XCTAssertEqual(NotchPositionCalculator.defaultWindowHeight, 220)
     }
 
     func testMinimumWindowHeight() {
@@ -13,7 +14,7 @@ final class NotchPositionCalculatorTests: XCTestCase {
     }
 
     func testMaximumWindowHeight() {
-        XCTAssertEqual(NotchPositionCalculator.maximumWindowHeight, 200)
+        XCTAssertEqual(NotchPositionCalculator.maximumWindowHeight, 300)
     }
 
     func testDefaultFloatingDimensions() {

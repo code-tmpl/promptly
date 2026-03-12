@@ -88,12 +88,22 @@ public final class KeyboardShortcutManager {
         }
 
         // ⌘↑ - Speed Up
-        if keyCode == KeyCode.upArrow && modifiers == .command {
+        // Arrow keys may include .numericPad flag, so check contains rather than exact match
+        // But ensure no other significant modifiers (shift, option, control) are pressed
+        if keyCode == KeyCode.upArrow &&
+           modifiers.contains(.command) &&
+           !modifiers.contains(.shift) &&
+           !modifiers.contains(.option) &&
+           !modifiers.contains(.control) {
             return .speedUp
         }
 
         // ⌘↓ - Speed Down
-        if keyCode == KeyCode.downArrow && modifiers == .command {
+        if keyCode == KeyCode.downArrow &&
+           modifiers.contains(.command) &&
+           !modifiers.contains(.shift) &&
+           !modifiers.contains(.option) &&
+           !modifiers.contains(.control) {
             return .speedDown
         }
 
